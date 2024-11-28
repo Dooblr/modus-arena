@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { useKeyboard } from '../hooks/useKeyboard'
 import { useProjectiles } from '../hooks/useProjectiles'
 import { useGameAudio } from '../hooks/useGameAudio'
+import { useGameState } from '../store/gameState'
 
 const MOVEMENT_SPEED = 8
 const TURN_SPEED = 2
@@ -30,14 +31,15 @@ export const Player: FC = () => {
   const wasJumpPressed = useRef(false)
   const velocity = useRef(new THREE.Vector3())
   const lastShootTime = useRef(0)
+  const isPaused = useGameState(state => state.isPaused)
 
   const { forward, backward, left, right, strafeLeft, strafeRight, jump } = useKeyboard()
   const { spawnPlayerProjectile } = useProjectiles()
   const { playBulletSound } = useGameAudio()
 
   useFrame((_, delta) => {
-    if (!meshRef.current || !cameraRef.current) return
-
+    if (!meshRef.current || !cameraRef.current || isPaused) return
+    
     const position = meshRef.current.position
 
     // Rotate player with A/D

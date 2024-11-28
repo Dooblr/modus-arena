@@ -29,6 +29,7 @@ export const EnemyManager: FC = () => {
   const lastDamageTime = useRef(0)
   const playerPosition = useRef(new THREE.Vector3())
   const takeDamage = useGameState(state => state.takeDamage)
+  const isPaused = useGameState(state => state.isPaused)
 
   // Function to get a random spawn position on the perimeter
   const getRandomSpawnPosition = () => {
@@ -41,6 +42,8 @@ export const EnemyManager: FC = () => {
   }
 
   useFrame(({ scene, clock }, delta) => {
+    if (isPaused) return
+
     const currentTime = clock.getElapsedTime()
 
     // Find player position
@@ -49,68 +52,69 @@ export const EnemyManager: FC = () => {
       playerPosition.current.copy(player.position)
     }
 
-    // Spawn new enemy
-    if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
-      setEnemies(prev => [...prev, {
-        id: nextId.current++,
-        position: getRandomSpawnPosition(),
-        spawnTime: currentTime,
-        health: INITIAL_HEALTH
-      }])
-      lastSpawnTime.current = currentTime
-    }
+    // Only spawn and update enemies when not paused
+    if (!isPaused) {
+      // Spawn new enemy
+      if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
+        setEnemies(prev => [...prev, {
+          id: nextId.current++,
+          position: getRandomSpawnPosition(),
+          spawnTime: currentTime,
+          health: INITIAL_HEALTH
+        }])
+        lastSpawnTime.current = currentTime
+      }
 
-    // Check for projectile collisions
-    const projectiles = scene.children.filter(child => 
-      child.name === 'player-projectile'
-    )
+      // Update enemy positions and check collisions
+      setEnemies(prev => 
+        prev
+          .map(enemy => {
+            const direction = new THREE.Vector3()
+              .subVectors(playerPosition.current, enemy.position)
+              .normalize()
+            
+            const newPosition = enemy.position.clone().add(
+              direction.multiplyScalar(ENEMY_SPEED)
+            )
 
-    // Update enemy positions and check collisions
-    setEnemies(prev => 
-      prev
-        .map(enemy => {
-          const direction = new THREE.Vector3()
-            .subVectors(playerPosition.current, enemy.position)
-            .normalize()
-          
-          const newPosition = enemy.position.clone().add(
-            direction.multiplyScalar(ENEMY_SPEED)
-          )
+            // Check for projectile collisions
+            let newHealth = enemy.health
+            const projectiles = scene.children.filter(child => 
+              child.name === 'player-projectile'
+            )
+            projectiles.forEach(projectile => {
+              if (projectile.position.distanceTo(enemy.position) < PROJECTILE_COLLISION_DISTANCE) {
+                newHealth--
+                console.log(`Enemy ${enemy.id} hit! Health: ${newHealth}`)
+                projectile.removeFromParent()
+              }
+            })
 
-          // Check for projectile collisions
-          let newHealth = enemy.health
-          projectiles.forEach(projectile => {
-            if (projectile.position.distanceTo(enemy.position) < PROJECTILE_COLLISION_DISTANCE) {
-              newHealth--
-              console.log(`Enemy ${enemy.id} hit! Health: ${newHealth}`)
-              projectile.removeFromParent()
+            return {
+              ...enemy,
+              position: newPosition,
+              health: newHealth
             }
           })
+          .filter(enemy => {
+            // Remove enemy if health depleted
+            if (enemy.health <= 0) {
+              console.log(`Enemy ${enemy.id} destroyed!`)
+              return false
+            }
 
-          return {
-            ...enemy,
-            position: newPosition,
-            health: newHealth
-          }
-        })
-        .filter(enemy => {
-          // Remove enemy if health depleted
-          if (enemy.health <= 0) {
-            console.log(`Enemy ${enemy.id} destroyed!`)
-            return false
-          }
-
-          // Check for collision with player
-          const distanceToPlayer = enemy.position.distanceTo(playerPosition.current)
-          if (distanceToPlayer < COLLISION_DISTANCE && 
-              currentTime - lastDamageTime.current >= DAMAGE_COOLDOWN) {
-            takeDamage(PLAYER_DAMAGE)
-            lastDamageTime.current = currentTime
-            return false // Remove enemy on collision
-          }
-          return true
-        })
-    )
+            // Check for collision with player
+            const distanceToPlayer = enemy.position.distanceTo(playerPosition.current)
+            if (distanceToPlayer < COLLISION_DISTANCE && 
+                currentTime - lastDamageTime.current >= DAMAGE_COOLDOWN) {
+              takeDamage(PLAYER_DAMAGE)
+              lastDamageTime.current = currentTime
+              return false
+            }
+            return true
+          })
+      )
+    }
   })
 
   return (

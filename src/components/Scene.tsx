@@ -7,13 +7,19 @@ import { PsychedelicShader } from '../shaders/PsychedelicShader'
 import { Player } from './Player'
 import { Terrain } from './Terrain'
 import { EnemyManager } from './EnemyManager'
+import { useGameState } from '../store/gameState'
 
 export const Scene: FC = () => {
   const floorRef = useRef<THREE.ShaderMaterial>(null)
+  const isPaused = useGameState(state => state.isPaused)
 
   useFrame(({ clock }) => {
-    if (floorRef.current) {
-      floorRef.current.uniforms.uTime.value = clock.getElapsedTime()
+    if (isPaused) {
+      // When paused, only update visual effects that should continue
+      if (floorRef.current) {
+        floorRef.current.uniforms.uTime.value = clock.getElapsedTime()
+      }
+      return
     }
   })
 
@@ -22,13 +28,6 @@ export const Scene: FC = () => {
       <SpaceEnvironment />
       <ProjectileManager />
       <EnemyManager />
-      
-      {/* Environment mesh for terrain interaction */}
-      <mesh position={[0, 0, 0]} visible={false}>
-        <boxGeometry args={[100, 100, 100]} />
-        <meshStandardMaterial wireframe />
-      </mesh>
-      
       <Player />
       <Terrain />
       

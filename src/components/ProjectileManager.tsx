@@ -2,6 +2,7 @@ import { FC, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useProjectileStore } from '../hooks/useProjectiles'
+import { useGameState } from '../store/gameState'
 
 interface Projectile {
   id: number
@@ -20,10 +21,12 @@ const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
 export const ProjectileManager: FC = () => {
   const [projectiles, setProjectiles] = useState<Projectile[]>([])
   const nextId = useRef(0)
+  const isPaused = useGameState(state => state.isPaused)
 
   // Register the spawn function with the store
   useProjectileStore.setState({
     spawnProjectile: (position: THREE.Vector3, direction: THREE.Vector3, type: 'player' | 'enemy') => {
+      if (isPaused) return // Don't spawn new projectiles when paused
       setProjectiles(prev => [...prev, {
         id: nextId.current++,
         position: position.clone(),
@@ -47,6 +50,8 @@ export const ProjectileManager: FC = () => {
   }
 
   useFrame(() => {
+    if (isPaused) return // Skip updates when paused
+
     setProjectiles(prev => 
       prev
         .map(projectile => ({
