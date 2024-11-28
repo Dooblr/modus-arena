@@ -192,6 +192,7 @@ export const Player: FC = () => {
         position={[0, PLAYER_HEIGHT / 2, 0]}
         castShadow
         receiveShadow
+        name="player"
       >
         <boxGeometry args={[1, PLAYER_HEIGHT, 1]} />
         <meshStandardMaterial 

@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { PsychedelicShader } from '../shaders/PsychedelicShader'
 import { Player } from './Player'
 import { Terrain } from './Terrain'
+import { EnemyManager } from './EnemyManager'
 
 export const Scene: FC = () => {
   const floorRef = useRef<THREE.ShaderMaterial>(null)
@@ -20,6 +21,7 @@ export const Scene: FC = () => {
     <>
       <SpaceEnvironment />
       <ProjectileManager />
+      <EnemyManager />
       
       {/* Environment mesh for terrain interaction */}
       <mesh position={[0, 0, 0]} visible={false}>
