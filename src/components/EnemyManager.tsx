@@ -36,6 +36,10 @@ const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
 const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
 const ENEMY_RADIUS = ENEMY_SIZE / 2
 
+// Color constants
+const FULL_HEALTH_COLOR = new THREE.Color('#00ff00')  // Green
+const LOW_HEALTH_COLOR = new THREE.Color('#ff0000')   // Red
+
 export const EnemyManager: FC = () => {
   const [enemies, setEnemies] = useState<Enemy[]>([])
   const [explosions, setExplosions] = useState<Explosion[]>([])
@@ -121,6 +125,12 @@ export const EnemyManager: FC = () => {
     }
 
     return direction
+  }
+
+  // Helper function to interpolate color based on health
+  const getEnemyColor = (health: number) => {
+    const healthPercent = health / INITIAL_HEALTH
+    return FULL_HEALTH_COLOR.clone().lerp(LOW_HEALTH_COLOR, 1 - healthPercent)
   }
 
   useFrame(({ scene, clock }, delta) => {
@@ -233,6 +243,9 @@ export const EnemyManager: FC = () => {
         const wobbleOffset = new THREE.Vector3()
           .addScaledVector(perpUp, verticalOffset)
           .addScaledVector(perpSide, horizontalOffset)
+
+        // Get interpolated color based on health
+        const enemyColor = getEnemyColor(enemy.health)
         
         return (
           <group 
@@ -245,8 +258,8 @@ export const EnemyManager: FC = () => {
             >
               <sphereGeometry args={[ENEMY_SIZE / 2, 16, 16]} />
               <meshStandardMaterial
-                color="#00ff00"
-                emissive="#00ff00"
+                color={enemyColor}
+                emissive={enemyColor}
                 emissiveIntensity={0.2}
                 metalness={0.8}
                 roughness={0.2}
