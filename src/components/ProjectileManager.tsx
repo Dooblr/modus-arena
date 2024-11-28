@@ -13,6 +13,10 @@ interface Projectile {
 const PROJECTILE_SPEED = 0.5
 const MAX_DISTANCE = 100
 
+// Terrain constants from Terrain.tsx
+const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
+const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
+
 export const ProjectileManager: FC = () => {
   const [projectiles, setProjectiles] = useState<Projectile[]>([])
   const nextId = useRef(0)
@@ -29,6 +33,19 @@ export const ProjectileManager: FC = () => {
     }
   })
 
+  // Check if a projectile collides with terrain
+  const checkTerrainCollision = (position: THREE.Vector3) => {
+    // Check if projectile is within terrain bounds
+    const inTerrainXBounds = position.x > TERRAIN_POSITION.x - TERRAIN_SIZE.x / 2 &&
+                            position.x < TERRAIN_POSITION.x + TERRAIN_SIZE.x / 2
+    const inTerrainYBounds = position.y > TERRAIN_POSITION.y - TERRAIN_SIZE.y / 2 &&
+                            position.y < TERRAIN_POSITION.y + TERRAIN_SIZE.y / 2
+    const inTerrainZBounds = position.z > TERRAIN_POSITION.z - TERRAIN_SIZE.z / 2 &&
+                            position.z < TERRAIN_POSITION.z + TERRAIN_SIZE.z / 2
+
+    return inTerrainXBounds && inTerrainYBounds && inTerrainZBounds
+  }
+
   useFrame(() => {
     setProjectiles(prev => 
       prev
@@ -38,10 +55,21 @@ export const ProjectileManager: FC = () => {
             projectile.direction.clone().multiplyScalar(PROJECTILE_SPEED)
           )
         }))
-        // Remove projectiles that have traveled too far
-        .filter(projectile => 
-          projectile.position.length() < MAX_DISTANCE
-        )
+        // Remove projectiles that have traveled too far or hit terrain
+        .filter(projectile => {
+          // Check distance from origin
+          if (projectile.position.length() > MAX_DISTANCE) {
+            return false
+          }
+
+          // Check terrain collision
+          if (checkTerrainCollision(projectile.position)) {
+            console.log(`Projectile ${projectile.id} hit terrain and despawned`)
+            return false
+          }
+
+          return true
+        })
     )
   })
 
