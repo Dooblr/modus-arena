@@ -23,6 +23,9 @@ const SHOOT_INTERVAL = 2.0 // Shoot every 2 seconds
 const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
 const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
 
+const FLOOR_SIZE = 50 // Size of the floor plane from Scene.tsx
+const FLOOR_BOUNDARY = FLOOR_SIZE / 2 - PLAYER_RADIUS // Account for player size
+
 export const Player: FC = () => {
   const cameraRef = useRef<THREE.PerspectiveCamera>(null)
   const meshRef = useRef<THREE.Mesh>(null)
@@ -95,6 +98,18 @@ export const Player: FC = () => {
       position.z + velocity.current.z * delta
     )
 
+    // Enforce floor plane boundaries
+    nextPosition.x = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, nextPosition.x))
+    nextPosition.z = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, nextPosition.z))
+
+    // Ground collision
+    const groundY = PLAYER_HEIGHT / 2
+    if (nextPosition.y <= groundY) {
+      nextPosition.y = groundY
+      velocity.current.y = 0
+      jumpCount.current = 0
+    }
+
     // Terrain boundaries
     const terrainMinX = TERRAIN_POSITION.x - TERRAIN_SIZE.x / 2
     const terrainMaxX = TERRAIN_POSITION.x + TERRAIN_SIZE.x / 2
@@ -107,14 +122,6 @@ export const Player: FC = () => {
                            nextPosition.x - PLAYER_RADIUS < terrainMaxX
     const inTerrainZBounds = nextPosition.z + PLAYER_RADIUS > terrainMinZ && 
                            nextPosition.z - PLAYER_RADIUS < terrainMaxZ
-
-    // Ground collision
-    const groundY = PLAYER_HEIGHT / 2
-    if (nextPosition.y <= groundY) {
-      nextPosition.y = groundY
-      velocity.current.y = 0
-      jumpCount.current = 0
-    }
 
     // Terrain collision handling
     if (inTerrainXBounds && inTerrainZBounds) {
