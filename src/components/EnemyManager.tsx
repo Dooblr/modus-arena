@@ -2,12 +2,20 @@ import { FC, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameState } from '../store/gameState'
+import { FireworkEffect } from './FireworkEffect'
+import { useGameAudio } from '../hooks/useGameAudio'
 
 interface Enemy {
   id: number
   position: THREE.Vector3
   spawnTime: number
   health: number
+}
+
+interface Explosion {
+  id: number
+  position: THREE.Vector3
+  startTime: number
 }
 
 const SPAWN_INTERVAL = 5 // Spawn every 5 seconds
@@ -21,6 +29,7 @@ const WOBBLE_SPEED = 10
 const WOBBLE_AMOUNT = 0.4
 const INITIAL_HEALTH = 3
 const PROJECTILE_COLLISION_DISTANCE = 0.8
+const PARTICLE_LIFETIME = 2 // Lifetime of particles in seconds
 
 // Terrain constants
 const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
@@ -29,12 +38,14 @@ const ENEMY_RADIUS = ENEMY_SIZE / 2
 
 export const EnemyManager: FC = () => {
   const [enemies, setEnemies] = useState<Enemy[]>([])
+  const [explosions, setExplosions] = useState<Explosion[]>([])
   const nextId = useRef(0)
   const lastSpawnTime = useRef(0)
   const lastDamageTime = useRef(0)
   const playerPosition = useRef(new THREE.Vector3())
   const takeDamage = useGameState(state => state.takeDamage)
   const isPaused = useGameState(state => state.isPaused)
+  const { playEnemyHitSound } = useGameAudio()
 
   // Function to get a random spawn position on the perimeter
   const getRandomSpawnPosition = () => {
@@ -123,6 +134,11 @@ export const EnemyManager: FC = () => {
       playerPosition.current.copy(player.position)
     }
 
+    // Clean up expired explosions
+    setExplosions(prev => 
+      prev.filter(explosion => currentTime - explosion.startTime < PARTICLE_LIFETIME)
+    )
+
     // Only spawn and update enemies when not paused
     if (!isPaused) {
       // Spawn new enemy
@@ -155,6 +171,8 @@ export const EnemyManager: FC = () => {
                 newHealth--
                 console.log(`Enemy ${enemy.id} hit! Health: ${newHealth}`)
                 projectile.removeFromParent()
+                // Play hit sound when enemy takes damage
+                playEnemyHitSound()
               }
             })
 
@@ -169,6 +187,12 @@ export const EnemyManager: FC = () => {
             // Remove enemy if health depleted
             if (enemy.health <= 0) {
               console.log(`Enemy ${enemy.id} destroyed!`)
+              // Add explosion effect
+              setExplosions(prev => [...prev, {
+                id: nextId.current++,
+                position: enemy.position.clone(),
+                startTime: currentTime
+              }])
               return false
             }
 
@@ -231,6 +255,15 @@ export const EnemyManager: FC = () => {
           </group>
         )
       })}
+
+      {/* Render explosions */}
+      {explosions.map(explosion => (
+        <FireworkEffect
+          key={explosion.id}
+          position={explosion.position}
+          color="#00ff00"
+        />
+      ))}
     </>
   )
 } 

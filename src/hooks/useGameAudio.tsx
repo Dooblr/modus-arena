@@ -3,6 +3,7 @@ import { useGameState } from '../store/gameState'
 import music1 from '../assets/music_loop.wav'
 import music2 from '../assets/music_loop2.wav'
 import bulletSound from '../assets/bullet3.wav'
+import enemyHitSound from '../assets/enemy_hit.wav'
 
 type AudioSources = {
   backgroundMusic1: string
@@ -11,6 +12,7 @@ type AudioSources = {
   doubleJump: string
   landing: string
   bullet: string
+  enemyHit: string
 }
 
 const audioSources: AudioSources = {
@@ -19,7 +21,8 @@ const audioSources: AudioSources = {
   jump: '/audio/jump.mp3',
   doubleJump: '/audio/double-jump.mp3',
   landing: '/audio/landing.mp3',
-  bullet: bulletSound
+  bullet: bulletSound,
+  enemyHit: enemyHitSound
 }
 
 export const useGameAudio = () => {
@@ -141,11 +144,20 @@ export const useGameAudio = () => {
     audioElements.current.bullet?.play()
   }, [])
 
+  const playEnemyHitSound = useCallback(() => {
+    if (!audioElements.current.enemyHit) {
+      audioElements.current.enemyHit = createAudio(audioSources.enemyHit, 0.3)
+    }
+    audioElements.current.enemyHit.currentTime = 0
+    audioElements.current.enemyHit?.play()
+  }, [])
+
   return {
     playBackgroundMusic,
     playJumpSound,
     playDoubleJumpSound,
     playLandingSound,
     playBulletSound,
+    playEnemyHitSound,
   }
 } 
