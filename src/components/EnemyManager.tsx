@@ -1,6 +1,7 @@
 import { FC, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useGameState } from '../store/gameState'
 
 interface Enemy {
   id: number
@@ -11,12 +12,17 @@ const SPAWN_INTERVAL = 5 // Spawn every 5 seconds
 const ENEMY_SPEED = 0.05
 const SPAWN_RADIUS = 20 // Distance from center to spawn enemies
 const ENEMY_SIZE = 0.8
+const DAMAGE_AMOUNT = 10
+const DAMAGE_COOLDOWN = 1 // Seconds between damage
+const COLLISION_DISTANCE = 1.2 // Distance for collision detection
 
 export const EnemyManager: FC = () => {
   const [enemies, setEnemies] = useState<Enemy[]>([])
   const nextId = useRef(0)
   const lastSpawnTime = useRef(0)
+  const lastDamageTime = useRef(0)
   const playerPosition = useRef(new THREE.Vector3())
+  const takeDamage = useGameState(state => state.takeDamage)
 
   // Function to get a random spawn position on the perimeter
   const getRandomSpawnPosition = () => {
@@ -45,20 +51,35 @@ export const EnemyManager: FC = () => {
       lastSpawnTime.current = currentTime
     }
 
-    // Update enemy positions
+    // Update enemy positions and check collisions
     setEnemies(prev => 
-      prev.map(enemy => {
-        const direction = new THREE.Vector3()
-          .subVectors(playerPosition.current, enemy.position)
-          .normalize()
-        
-        return {
-          ...enemy,
-          position: enemy.position.clone().add(
+      prev
+        .map(enemy => {
+          const direction = new THREE.Vector3()
+            .subVectors(playerPosition.current, enemy.position)
+            .normalize()
+          
+          const newPosition = enemy.position.clone().add(
             direction.multiplyScalar(ENEMY_SPEED)
           )
-        }
-      })
+
+          return {
+            ...enemy,
+            position: newPosition
+          }
+        })
+        .filter(enemy => {
+          // Check for collision with player
+          const distanceToPlayer = enemy.position.distanceTo(playerPosition.current)
+          if (distanceToPlayer < COLLISION_DISTANCE && 
+              currentTime - lastDamageTime.current >= DAMAGE_COOLDOWN) {
+            takeDamage(DAMAGE_AMOUNT)
+            lastDamageTime.current = currentTime
+            console.log(`Enemy ${enemy.id} collided with player and despawned`)
+            return false // Remove this enemy
+          }
+          return true // Keep this enemy
+        })
     )
   })
 

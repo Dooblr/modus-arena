@@ -4,11 +4,13 @@ interface GameState {
   isPaused: boolean
   masterVolume: number
   isMuted: boolean
+  health: number
   setPaused: (paused: boolean) => void
   togglePause: () => void
   setMasterVolume: (volume: number) => void
   toggleMute: () => void
   previousVolume: number
+  takeDamage: (amount: number) => void
 }
 
 export const useGameState = create<GameState>((set) => ({
@@ -16,6 +18,7 @@ export const useGameState = create<GameState>((set) => ({
   masterVolume: 0.5,
   isMuted: false,
   previousVolume: 0.5,
+  health: 100,
 
   setPaused: (paused) => set({ isPaused: paused }),
   
@@ -33,4 +36,10 @@ export const useGameState = create<GameState>((set) => ({
     isMuted: !state.isMuted,
     masterVolume: state.isMuted ? state.previousVolume : 0
   })),
+
+  takeDamage: (amount) => set((state) => {
+    const newHealth = Math.max(0, state.health - amount)
+    console.log(`Player took ${amount} damage! Health: ${newHealth}`)
+    return { health: newHealth }
+  }),
 })) 
