@@ -194,7 +194,11 @@ export const Player: FC = () => {
         receiveShadow
       >
         <boxGeometry args={[1, PLAYER_HEIGHT, 1]} />
-        <meshStandardMaterial color="#1e88e5" emissive="#1e88e5" emissiveIntensity={0.2} />
+        <meshStandardMaterial 
+          color="#000000"
+          roughness={0.7}
+          metalness={0.1}
+        />
       </mesh>
 
       <directionalLight 
