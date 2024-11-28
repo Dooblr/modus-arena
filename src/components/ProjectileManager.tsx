@@ -80,6 +80,7 @@ export const ProjectileManager: FC = () => {
           key={projectile.id}
           position={projectile.position}
           castShadow
+          name={`${projectile.type}-projectile`}
         >
           <sphereGeometry args={[0.2, 16, 16]} />
           <meshStandardMaterial

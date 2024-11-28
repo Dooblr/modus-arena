@@ -7,17 +7,20 @@ interface Enemy {
   id: number
   position: THREE.Vector3
   spawnTime: number
+  health: number
 }
 
 const SPAWN_INTERVAL = 5 // Spawn every 5 seconds
 const ENEMY_SPEED = 0.05
 const SPAWN_RADIUS = 20 // Distance from center to spawn enemies
 const ENEMY_SIZE = 0.8
-const DAMAGE_AMOUNT = 10
-const DAMAGE_COOLDOWN = 1 // Seconds between damage
+const PLAYER_DAMAGE = 10 // Damage dealt to player
+const DAMAGE_COOLDOWN = 0.5 // Reduced cooldown for more consistent damage
 const COLLISION_DISTANCE = 1.2 // Distance for collision detection
-const WOBBLE_SPEED = 10 // Faster wobble for more noticeable effect
-const WOBBLE_AMOUNT = 0.4 // Larger wobble distance
+const WOBBLE_SPEED = 10
+const WOBBLE_AMOUNT = 0.4
+const INITIAL_HEALTH = 3
+const PROJECTILE_COLLISION_DISTANCE = 0.8
 
 export const EnemyManager: FC = () => {
   const [enemies, setEnemies] = useState<Enemy[]>([])
@@ -51,10 +54,16 @@ export const EnemyManager: FC = () => {
       setEnemies(prev => [...prev, {
         id: nextId.current++,
         position: getRandomSpawnPosition(),
-        spawnTime: currentTime
+        spawnTime: currentTime,
+        health: INITIAL_HEALTH
       }])
       lastSpawnTime.current = currentTime
     }
+
+    // Check for projectile collisions
+    const projectiles = scene.children.filter(child => 
+      child.name === 'player-projectile'
+    )
 
     // Update enemy positions and check collisions
     setEnemies(prev => 
@@ -68,22 +77,38 @@ export const EnemyManager: FC = () => {
             direction.multiplyScalar(ENEMY_SPEED)
           )
 
+          // Check for projectile collisions
+          let newHealth = enemy.health
+          projectiles.forEach(projectile => {
+            if (projectile.position.distanceTo(enemy.position) < PROJECTILE_COLLISION_DISTANCE) {
+              newHealth--
+              console.log(`Enemy ${enemy.id} hit! Health: ${newHealth}`)
+              projectile.removeFromParent()
+            }
+          })
+
           return {
             ...enemy,
-            position: newPosition
+            position: newPosition,
+            health: newHealth
           }
         })
         .filter(enemy => {
+          // Remove enemy if health depleted
+          if (enemy.health <= 0) {
+            console.log(`Enemy ${enemy.id} destroyed!`)
+            return false
+          }
+
           // Check for collision with player
           const distanceToPlayer = enemy.position.distanceTo(playerPosition.current)
           if (distanceToPlayer < COLLISION_DISTANCE && 
               currentTime - lastDamageTime.current >= DAMAGE_COOLDOWN) {
-            takeDamage(DAMAGE_AMOUNT)
+            takeDamage(PLAYER_DAMAGE)
             lastDamageTime.current = currentTime
-            console.log(`Enemy ${enemy.id} collided with player and despawned`)
-            return false // Remove this enemy
+            return false // Remove enemy on collision
           }
-          return true // Keep this enemy
+          return true
         })
     )
   })
@@ -125,7 +150,7 @@ export const EnemyManager: FC = () => {
               <meshStandardMaterial
                 color="#00ff00"
                 emissive="#00ff00"
-                emissiveIntensity={0.2}
+                emissiveIntensity={0.2 + (1 - enemy.health / INITIAL_HEALTH) * 0.3} // Glow more as health decreases
                 metalness={0.8}
                 roughness={0.2}
               />
