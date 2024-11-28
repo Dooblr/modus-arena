@@ -4,6 +4,7 @@ import { PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import { useKeyboard } from '../hooks/useKeyboard'
 import { useProjectiles } from '../hooks/useProjectiles'
+import { useGameAudio } from '../hooks/useGameAudio'
 
 const MOVEMENT_SPEED = 8
 const TURN_SPEED = 2
@@ -32,6 +33,7 @@ export const Player: FC = () => {
 
   const { forward, backward, left, right, strafeLeft, strafeRight, jump } = useKeyboard()
   const { spawnPlayerProjectile } = useProjectiles()
+  const { playBulletSound } = useGameAudio()
 
   useFrame((_, delta) => {
     if (!meshRef.current || !cameraRef.current) return
@@ -153,7 +155,7 @@ export const Player: FC = () => {
     cameraRef.current.position.set(cameraX, cameraY, cameraZ)
     cameraRef.current.lookAt(position)
 
-    // Continuous shooting
+    // Continuous shooting with sound
     const currentTime = performance.now() / 1000
     if (currentTime - lastShootTime.current >= SHOOT_INTERVAL) {
       const shootDirection = new THREE.Vector3(
@@ -164,13 +166,14 @@ export const Player: FC = () => {
       
       const shootPosition = position.clone().add(
         new THREE.Vector3(
-          shootDirection.x * 1.5, // Spawn further from player
+          shootDirection.x * 1.5,
           PLAYER_HEIGHT / 2,
           shootDirection.z * 1.5
         )
       )
       
       spawnPlayerProjectile(shootPosition, shootDirection)
+      playBulletSound()
       lastShootTime.current = currentTime
     }
   })

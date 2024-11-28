@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from 'react'
 import { useGameState } from '../store/gameState'
 import music1 from '../assets/music_loop.wav'
 import music2 from '../assets/music_loop2.wav'
+import bulletSound from '../assets/bullet3.wav'
 
 type AudioSources = {
   backgroundMusic1: string
@@ -9,6 +10,7 @@ type AudioSources = {
   jump: string
   doubleJump: string
   landing: string
+  bullet: string
 }
 
 const audioSources: AudioSources = {
@@ -17,6 +19,7 @@ const audioSources: AudioSources = {
   jump: '/audio/jump.mp3',
   doubleJump: '/audio/double-jump.mp3',
   landing: '/audio/landing.mp3',
+  bullet: bulletSound
 }
 
 export const useGameAudio = () => {
@@ -130,10 +133,19 @@ export const useGameAudio = () => {
     audioElements.current.landing?.play()
   }, [])
 
+  const playBulletSound = useCallback(() => {
+    if (!audioElements.current.bullet) {
+      audioElements.current.bullet = createAudio(audioSources.bullet, 0.3)
+    }
+    audioElements.current.bullet.currentTime = 0
+    audioElements.current.bullet?.play()
+  }, [])
+
   return {
     playBackgroundMusic,
     playJumpSound,
     playDoubleJumpSound,
     playLandingSound,
+    playBulletSound,
   }
 } 
