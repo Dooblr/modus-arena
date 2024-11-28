@@ -28,7 +28,7 @@ const COLLISION_DISTANCE = 1.2
 const WOBBLE_SPEED = 10
 const WOBBLE_AMOUNT = 0.4
 const INITIAL_HEALTH = 3
-const PROJECTILE_COLLISION_DISTANCE = 0.8
+const PROJECTILE_COLLISION_DISTANCE = 1.2
 const PARTICLE_LIFETIME = 2 // Lifetime of particles in seconds
 
 // Terrain constants
