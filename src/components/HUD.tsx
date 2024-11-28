@@ -1,19 +1,27 @@
-import { FC } from 'react'
+import { FC, useState, useCallback } from 'react'
 import { useGameState } from '../store/gameState'
+import { useGameAudio } from '../hooks/useGameAudio'
 import { PauseButton } from './PauseButton'
 import './HUD.scss'
 
 export const HUD: FC = () => {
+  const [isMusicStarted, setIsMusicStarted] = useState(false)
   const health = useGameState(state => state.health)
   const masterVolume = useGameState(state => state.masterVolume)
   const isMuted = useGameState(state => state.isMuted)
   const setMasterVolume = useGameState(state => state.setMasterVolume)
   const toggleMute = useGameState(state => state.toggleMute)
+  const { playBackgroundMusic } = useGameAudio()
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value)
     setMasterVolume(newVolume)
   }
+
+  const handleStartMusic = useCallback(() => {
+    playBackgroundMusic()
+    setIsMusicStarted(true)
+  }, [playBackgroundMusic])
 
   return (
     <div className="hud">
@@ -35,6 +43,14 @@ export const HUD: FC = () => {
 
       {/* Audio Controls */}
       <div className="audio-controls">
+        {!isMusicStarted && (
+          <button 
+            onClick={handleStartMusic}
+            className="audio-controls__start-button"
+          >
+            🎵 Start Music
+          </button>
+        )}
         <button 
           onClick={toggleMute}
           className="audio-controls__mute-button"

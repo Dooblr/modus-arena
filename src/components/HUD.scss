@@ -59,17 +59,27 @@
     align-items: center;
     z-index: 1000;
 
+    &__start-button,
     &__mute-button {
       min-width: 30px;
-      padding: 5px;
+      padding: 8px 16px;
       background: none;
-      border: none;
+      border: 2px solid #ffffff;
       color: white;
       cursor: pointer;
-      font-size: 20px;
+      font-size: 16px;
+      border-radius: 4px;
+      transition: all 0.3s ease;
       
       &:hover {
-        opacity: 0.8;
+        background: rgba(255, 255, 255, 0.1);
+      }
+    }
+
+    &__start-button {
+      background: #2ecc71;
+      &:hover {
+        background: #27ae60;
       }
     }
 
