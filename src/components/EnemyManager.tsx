@@ -49,7 +49,7 @@ export const EnemyManager: FC = () => {
   const playerPosition = useRef(new THREE.Vector3())
   const takeDamage = useGameState(state => state.takeDamage)
   const isPaused = useGameState(state => state.isPaused)
-  const { playEnemyHitSound } = useGameAudio()
+  const { playEnemyHitSound, playEnemyDeathSound } = useGameAudio()
 
   // Function to get a random spawn position on the perimeter
   const getRandomSpawnPosition = () => {
@@ -181,7 +181,7 @@ export const EnemyManager: FC = () => {
                 newHealth--
                 console.log(`Enemy ${enemy.id} hit! Health: ${newHealth}`)
                 projectile.removeFromParent()
-                // Play hit sound when enemy takes damage
+                // Play hit sound
                 playEnemyHitSound()
               }
             })
@@ -197,6 +197,8 @@ export const EnemyManager: FC = () => {
             // Remove enemy if health depleted
             if (enemy.health <= 0) {
               console.log(`Enemy ${enemy.id} destroyed!`)
+              // Play death sound
+              playEnemyDeathSound()
               // Add explosion effect
               setExplosions(prev => [...prev, {
                 id: nextId.current++,

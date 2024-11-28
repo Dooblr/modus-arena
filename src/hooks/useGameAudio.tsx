@@ -5,12 +5,14 @@ import music2 from '../assets/music_loop2.wav'
 import music3 from '../assets/music_loop3.wav'
 import bulletSound from '../assets/bullet3.wav'
 import enemyHitSound from '../assets/enemy_hit.wav'
+import enemyDeathSound from '../assets/enemy_death.wav'
 
 type AudioSources = {
   music1: string
   music2: string
   music3: string
   enemyHit: string
+  enemyDeath: string
   bullet: string
 }
 
@@ -19,6 +21,7 @@ const audioSources: AudioSources = {
   music2,
   music3,
   enemyHit: enemyHitSound,
+  enemyDeath: enemyDeathSound,
   bullet: bulletSound,
 }
 
@@ -154,6 +157,14 @@ export const useGameAudio = () => {
     audioElements.current.enemyHit?.play()
   }, [createAudio])
 
+  const playEnemyDeathSound = useCallback(() => {
+    if (!audioElements.current.enemyDeath) {
+      audioElements.current.enemyDeath = createAudio(audioSources.enemyDeath, 0.4)
+    }
+    audioElements.current.enemyDeath.currentTime = 0
+    audioElements.current.enemyDeath?.play()
+  }, [createAudio])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -166,5 +177,6 @@ export const useGameAudio = () => {
     stopBackgroundMusic,
     playBulletSound,
     playEnemyHitSound,
+    playEnemyDeathSound,
   }
 } 
