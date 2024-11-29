@@ -18,7 +18,7 @@ const STRAFE_SPEED = 6
 const GRAVITY = -30
 const PLAYER_RADIUS = 0.5
 const MAX_JUMPS = 2
-const SHOOT_INTERVAL = 2.0
+const SHOOT_INTERVAL = 1.0
 
 // Floor boundaries
 const FLOOR_SIZE = 50

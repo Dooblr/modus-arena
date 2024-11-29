@@ -2,6 +2,7 @@ import { FC, useState, useCallback } from 'react'
 import { useGameState } from '../store/gameState'
 import { useGameAudio } from '../hooks/useGameAudio'
 import { PauseButton } from './PauseButton'
+import { UpgradeDisplay } from './UpgradeDisplay'
 import './HUD.scss'
 
 export const HUD: FC = () => {
@@ -61,6 +62,9 @@ export const HUD: FC = () => {
           {xp}/{xpToNextLevel} XP
         </span>
       </div>
+
+      {/* Upgrade Display */}
+      <UpgradeDisplay />
 
       {/* Audio Controls */}
       <div className="audio-controls">

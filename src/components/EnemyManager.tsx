@@ -30,8 +30,8 @@ const WOBBLE_SPEED = 10
 const WOBBLE_AMOUNT = 0.4
 const INITIAL_HEALTH = 3
 const PARTICLE_LIFETIME = 1 // seconds
-const ENEMY_REPULSION_DISTANCE = ENEMY_SIZE * 8 // Increased from 4 to 8
-const ENEMY_REPULSION_FORCE = 0.05 // Increased from 0.03 to 0.05
+const ENEMY_REPULSION_DISTANCE = ENEMY_SIZE * 8
+const ENEMY_REPULSION_FORCE = 0.05
 
 // Color constants
 const FULL_HEALTH_COLOR = new THREE.Color('#00ff00') // Green
@@ -52,6 +52,24 @@ export const EnemyManager: FC = () => {
   const takeDamage = useGameState(state => state.takeDamage)
   const isPaused = useGameState(state => state.isPaused)
   const { playEnemyHitSound, playEnemyDeathSound } = useGameAudio()
+
+  // Function to handle enemy destruction
+  const destroyEnemy = (enemy: Enemy, currentTime: number) => {
+    // Add explosion effect
+    setExplosions(prev => [...prev, {
+      id: nextId.current++,
+      position: enemy.position.clone(),
+      startTime: currentTime
+    }])
+    
+    // Play death sound
+    playEnemyDeathSound()
+    
+    // Spawn XP powerup at enemy position
+    if (typeof window !== 'undefined' && (window as any).spawnPowerup) {
+      (window as any).spawnPowerup('xp', enemy.position)
+    }
+  }
 
   // Function to check if a position collides with terrain
   const checkTerrainCollision = (position: THREE.Vector3) => {
@@ -239,17 +257,7 @@ export const EnemyManager: FC = () => {
             // Remove enemy if health depleted
             if (enemy.health <= 0) {
               console.log(`Enemy ${enemy.id} destroyed!`)
-              playEnemyDeathSound()
-              // Add explosion effect
-              setExplosions(prev => [...prev, {
-                id: nextId.current++,
-                position: enemy.position.clone(),
-                startTime: currentTime
-              }])
-              // Spawn XP powerup at enemy position
-              if (typeof window !== 'undefined' && (window as any).spawnPowerup) {
-                (window as any).spawnPowerup('xp', enemy.position)
-              }
+              destroyEnemy(enemy, currentTime)
               return false
             }
 
@@ -259,6 +267,7 @@ export const EnemyManager: FC = () => {
                 currentTime - lastDamageTime.current >= DAMAGE_COOLDOWN) {
               takeDamage(PLAYER_DAMAGE)
               lastDamageTime.current = currentTime
+              destroyEnemy(enemy, currentTime) // Add explosion on player collision
               return false
             }
             return true
