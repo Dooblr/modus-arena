@@ -1,140 +1,115 @@
-import { FC, useRef, useState } from 'react'
+import { FC, useState, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameState } from '../store/gameState'
-import { HealthPowerup } from './powerups/HealthPowerup'
-import { XPPowerup } from './powerups/XPPowerup'
-import { create } from 'zustand'
+import { useGameAudio } from '../hooks/useGameAudio'
 
 interface Powerup {
   id: number
-  type: 'health' | 'xp'
   position: THREE.Vector3
+  type: 'xp'
   spawnTime: number
 }
 
-interface PowerupStore {
-  spawnPowerup: (type: 'health' | 'xp', position: THREE.Vector3) => void
-}
-
-export const usePowerupStore = create<PowerupStore>(() => ({
-  spawnPowerup: () => null, // Will be set by PowerupManager
-}))
-
-const SPAWN_INTERVAL = 10 // Spawn every 10 seconds
-const SPAWN_RADIUS = 15 // Distance from center to spawn powerups
-const POWERUP_SIZE = 0.5
-const COLLECTION_DISTANCE = 1.5
-const POWERUP_LIFETIME = 15 // Powerups disappear after 15 seconds
-const POWERUP_HOVER_SPEED = 2
-const POWERUP_HOVER_HEIGHT = 0.3
-const POWERUP_ROTATION_SPEED = 1
+const POWERUP_SIZE = 0.3
+const MAGNETIZE_DISTANCE = 5
+const MAGNETIZE_SPEED = 0.2
+const COLLECTION_DISTANCE = 0.8
+const XP_AMOUNT = 20
+const POWERUP_LIFETIME = 10 // seconds
+const XP_COLOR = '#00ffff'
 
 export const PowerupManager: FC = () => {
   const [powerups, setPowerups] = useState<Powerup[]>([])
   const nextId = useRef(0)
-  const lastSpawnTime = useRef(0)
   const playerPosition = useRef(new THREE.Vector3())
-  const { addHealth, addXP } = useGameState()
+  const addXP = useGameState(state => state.addXP)
   const isPaused = useGameState(state => state.isPaused)
+  const { playPowerupSound } = useGameAudio()
 
-  // Function to get a random spawn position
-  const getRandomSpawnPosition = () => {
-    const angle = Math.random() * Math.PI * 2
-    return new THREE.Vector3(
-      Math.cos(angle) * SPAWN_RADIUS,
-      POWERUP_SIZE,
-      Math.sin(angle) * SPAWN_RADIUS
-    )
+  // Function to spawn a new powerup
+  const spawnPowerup = (type: 'xp', position: THREE.Vector3) => {
+    setPowerups(prev => [...prev, {
+      id: nextId.current++,
+      position: position.clone(),
+      type,
+      spawnTime: Date.now() / 1000
+    }])
   }
 
-  // Randomly choose powerup type
-  const getRandomPowerupType = (): 'health' | 'xp' => {
-    return Math.random() < 0.7 ? 'health' : 'xp' // 70% chance for health, 30% for xp
+  // Make spawnPowerup available globally
+  if (typeof window !== 'undefined') {
+    (window as any).spawnPowerup = spawnPowerup
   }
 
-  // Register spawn function with the store
-  usePowerupStore.setState({
-    spawnPowerup: (type: 'health' | 'xp', position: THREE.Vector3) => {
-      if (isPaused) return
-      setPowerups(prev => [...prev, {
-        id: nextId.current++,
-        type,
-        position: position.clone(),
-        spawnTime: Date.now() / 1000
-      }])
-    }
-  })
-
-  useFrame(({ scene, clock }) => {
+  useFrame(({ scene }, delta) => {
     if (isPaused) return
 
-    const currentTime = clock.getElapsedTime()
+    const currentTime = Date.now() / 1000
 
-    // Find player position
+    // Update player position
     const player = scene.getObjectByName('player')
     if (player) {
       playerPosition.current.copy(player.position)
     }
 
-    // Spawn new random powerup
-    if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
-      setPowerups(prev => [...prev, {
-        id: nextId.current++,
-        type: getRandomPowerupType(),
-        position: getRandomSpawnPosition(),
-        spawnTime: currentTime
-      }])
-      lastSpawnTime.current = currentTime
-    }
-
     // Update powerups
     setPowerups(prev => 
-      prev.filter(powerup => {
-        // Remove expired powerups
-        if (currentTime - powerup.spawnTime > POWERUP_LIFETIME) {
-          console.log(`Powerup ${powerup.id} expired`)
-          return false
-        }
-
-        // Check for collection
-        const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
-        if (distanceToPlayer < COLLECTION_DISTANCE) {
-          if (powerup.type === 'health') {
-            addHealth(10)
-            console.log('Health powerup collected! Health increased by 10')
-          } else {
-            addXP(20)
-            console.log('XP powerup collected! XP increased by 20')
+      prev
+        .filter(powerup => {
+          // Remove expired powerups
+          if (currentTime - powerup.spawnTime > POWERUP_LIFETIME) {
+            return false
           }
-          return false
-        }
 
-        return true
-      })
+          const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
+
+          // Collect powerup if close enough
+          if (distanceToPlayer < COLLECTION_DISTANCE) {
+            if (powerup.type === 'xp') {
+              addXP(XP_AMOUNT)
+              playPowerupSound()
+            }
+            return false
+          }
+
+          return true
+        })
+        .map(powerup => {
+          const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
+
+          // Magnetize towards player if within range
+          if (distanceToPlayer < MAGNETIZE_DISTANCE) {
+            const direction = new THREE.Vector3()
+              .subVectors(playerPosition.current, powerup.position)
+              .normalize()
+              .multiplyScalar(MAGNETIZE_SPEED * (1 - distanceToPlayer / MAGNETIZE_DISTANCE))
+
+            powerup.position.add(direction)
+          }
+
+          return powerup
+        })
     )
   })
 
   return (
     <>
-      {powerups.map(powerup => {
-        const hoverOffset = Math.sin(powerup.spawnTime * POWERUP_HOVER_SPEED) * POWERUP_HOVER_HEIGHT
-        const rotationAngle = powerup.spawnTime * POWERUP_ROTATION_SPEED
-
-        return powerup.type === 'health' ? (
-          <HealthPowerup
-            key={powerup.id}
-            position={powerup.position.clone().add(new THREE.Vector3(0, hoverOffset, 0))}
-            rotation={[0, rotationAngle, 0]}
+      {powerups.map(powerup => (
+        <mesh
+          key={powerup.id}
+          position={powerup.position}
+        >
+          <octahedronGeometry args={[POWERUP_SIZE]} />
+          <meshStandardMaterial
+            color={XP_COLOR}
+            emissive={XP_COLOR}
+            emissiveIntensity={0.5}
+            metalness={0.8}
+            roughness={0.2}
           />
-        ) : (
-          <XPPowerup
-            key={powerup.id}
-            position={powerup.position.clone().add(new THREE.Vector3(0, hoverOffset, 0))}
-            rotation={[0, rotationAngle, 0]}
-          />
-        )
-      })}
+        </mesh>
+      ))}
     </>
   )
 } 
