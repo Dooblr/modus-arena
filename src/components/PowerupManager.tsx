@@ -1,4 +1,4 @@
-import { FC, useState, useRef } from 'react'
+import { FC, useState, useRef, useCallback } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameState } from '../store/gameState'
@@ -7,7 +7,7 @@ import { useGameAudio } from '../hooks/useGameAudio'
 interface Powerup {
   id: number
   position: THREE.Vector3
-  type: 'xp'
+  type: 'xp' | 'health'
   spawnTime: number
 }
 
@@ -16,31 +16,49 @@ const MAGNETIZE_DISTANCE = 5
 const MAGNETIZE_SPEED = 0.2
 const COLLECTION_DISTANCE = 0.8
 const XP_AMOUNT = 20
+const HEALTH_AMOUNT = 20
 const POWERUP_LIFETIME = 10 // seconds
+const SPAWN_INTERVAL = 10 // seconds
+const SPAWN_RADIUS = 15
 const XP_COLOR = '#00ffff'
+const HEALTH_COLOR = '#ff0088'
 
 export const PowerupManager: FC = () => {
   const [powerups, setPowerups] = useState<Powerup[]>([])
   const nextId = useRef(0)
+  const lastSpawnTime = useRef(0)
   const playerPosition = useRef(new THREE.Vector3())
-  const addXP = useGameState(state => state.addXP)
+  
+  // Access store values individually to prevent unnecessary rerenders
   const isPaused = useGameState(state => state.isPaused)
+  const addXP = useGameState(state => state.addXP)
+  const addHealth = useGameState(state => state.addHealth)
   const { playPowerupSound } = useGameAudio()
 
-  // Function to spawn a new powerup
-  const spawnPowerup = (type: 'xp', position: THREE.Vector3) => {
+  // Memoize spawn function to prevent recreation on each render
+  const spawnPowerup = useCallback((type: 'xp' | 'health', position: THREE.Vector3) => {
     setPowerups(prev => [...prev, {
       id: nextId.current++,
       position: position.clone(),
       type,
       spawnTime: Date.now() / 1000
     }])
-  }
+  }, [])
 
   // Make spawnPowerup available globally
   if (typeof window !== 'undefined') {
     (window as any).spawnPowerup = spawnPowerup
   }
+
+  // Memoize random spawn position function
+  const getRandomSpawnPosition = useCallback(() => {
+    const angle = Math.random() * Math.PI * 2
+    return new THREE.Vector3(
+      Math.cos(angle) * SPAWN_RADIUS,
+      POWERUP_SIZE,
+      Math.sin(angle) * SPAWN_RADIUS
+    )
+  }, [])
 
   useFrame(({ scene }, delta) => {
     if (isPaused) return
@@ -53,44 +71,52 @@ export const PowerupManager: FC = () => {
       playerPosition.current.copy(player.position)
     }
 
-    // Update powerups
-    setPowerups(prev => 
-      prev
-        .filter(powerup => {
-          // Remove expired powerups
-          if (currentTime - powerup.spawnTime > POWERUP_LIFETIME) {
-            return false
+    // Randomly spawn health powerups
+    if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
+      spawnPowerup('health', getRandomSpawnPosition())
+      lastSpawnTime.current = currentTime
+    }
+
+    // Update powerups in a single batch
+    setPowerups(prev => {
+      let needsUpdate = false
+      const updatedPowerups = prev.filter(powerup => {
+        // Remove expired powerups
+        if (currentTime - powerup.spawnTime > POWERUP_LIFETIME) {
+          needsUpdate = true
+          return false
+        }
+
+        const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
+
+        // Collect powerup if close enough
+        if (distanceToPlayer < COLLECTION_DISTANCE) {
+          if (powerup.type === 'xp') {
+            addXP(XP_AMOUNT)
+          } else if (powerup.type === 'health') {
+            addHealth(HEALTH_AMOUNT)
           }
+          playPowerupSound()
+          needsUpdate = true
+          return false
+        }
 
-          const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
+        // Magnetize towards player if within range
+        if (distanceToPlayer < MAGNETIZE_DISTANCE) {
+          const direction = new THREE.Vector3()
+            .subVectors(playerPosition.current, powerup.position)
+            .normalize()
+            .multiplyScalar(MAGNETIZE_SPEED * (1 - distanceToPlayer / MAGNETIZE_DISTANCE))
 
-          // Collect powerup if close enough
-          if (distanceToPlayer < COLLECTION_DISTANCE) {
-            if (powerup.type === 'xp') {
-              addXP(XP_AMOUNT)
-              playPowerupSound()
-            }
-            return false
-          }
+          powerup.position.add(direction)
+          needsUpdate = true
+        }
 
-          return true
-        })
-        .map(powerup => {
-          const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
+        return true
+      })
 
-          // Magnetize towards player if within range
-          if (distanceToPlayer < MAGNETIZE_DISTANCE) {
-            const direction = new THREE.Vector3()
-              .subVectors(playerPosition.current, powerup.position)
-              .normalize()
-              .multiplyScalar(MAGNETIZE_SPEED * (1 - distanceToPlayer / MAGNETIZE_DISTANCE))
-
-            powerup.position.add(direction)
-          }
-
-          return powerup
-        })
-    )
+      return needsUpdate ? updatedPowerups : prev
+    })
   })
 
   return (
@@ -102,8 +128,8 @@ export const PowerupManager: FC = () => {
         >
           <octahedronGeometry args={[POWERUP_SIZE]} />
           <meshStandardMaterial
-            color={XP_COLOR}
-            emissive={XP_COLOR}
+            color={powerup.type === 'xp' ? XP_COLOR : HEALTH_COLOR}
+            emissive={powerup.type === 'xp' ? XP_COLOR : HEALTH_COLOR}
             emissiveIntensity={0.5}
             metalness={0.8}
             roughness={0.2}
