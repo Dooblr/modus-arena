@@ -30,6 +30,8 @@ const WOBBLE_SPEED = 10
 const WOBBLE_AMOUNT = 0.4
 const INITIAL_HEALTH = 3
 const PARTICLE_LIFETIME = 1 // seconds
+const ENEMY_REPULSION_DISTANCE = ENEMY_SIZE * 8 // Increased from 4 to 8
+const ENEMY_REPULSION_FORCE = 0.05 // Increased from 0.03 to 0.05
 
 // Color constants
 const FULL_HEALTH_COLOR = new THREE.Color('#00ff00') // Green
@@ -138,8 +140,32 @@ export const EnemyManager: FC = () => {
   const getEnemyColor = (health: number) => {
     const healthPercent = health / INITIAL_HEALTH
     const color = new THREE.Color()
+    // Start with full health (green) and interpolate to no health (red)
     color.lerpColors(NO_HEALTH_COLOR, FULL_HEALTH_COLOR, healthPercent)
     return color
+  }
+
+  // Function to calculate repulsion between enemies
+  const calculateEnemyRepulsion = (enemy: Enemy, otherEnemies: Enemy[]) => {
+    const repulsion = new THREE.Vector3(0, 0, 0)
+    
+    for (const other of otherEnemies) {
+      if (other.id === enemy.id) continue
+
+      const distance = enemy.position.distanceTo(other.position)
+      if (distance < ENEMY_REPULSION_DISTANCE) {
+        // Calculate repulsion direction (away from other enemy)
+        const direction = new THREE.Vector3()
+          .subVectors(enemy.position, other.position)
+          .normalize()
+        
+        // Stronger repulsion force when very close
+        const force = Math.pow(1 - distance / ENEMY_REPULSION_DISTANCE, 2) * ENEMY_REPULSION_FORCE
+        repulsion.add(direction.multiplyScalar(force))
+      }
+    }
+
+    return repulsion
   }
 
   useFrame(({ scene, clock }, delta) => {
@@ -175,10 +201,18 @@ export const EnemyManager: FC = () => {
       setEnemies(prev => 
         prev
           .map(enemy => {
-            // Calculate path considering terrain
+            // Calculate base movement direction towards player
             const direction = calculatePathAroundTerrain(enemy.position, playerPosition.current)
+            
+            // Calculate repulsion from other enemies
+            const repulsion = calculateEnemyRepulsion(enemy, prev)
+            
+            // Combine movement direction with repulsion
+            const finalDirection = direction.add(repulsion).normalize()
+            
+            // Calculate new position
             const newPosition = enemy.position.clone().add(
-              direction.multiplyScalar(ENEMY_SPEED)
+              finalDirection.multiplyScalar(ENEMY_SPEED)
             )
 
             // Check for projectile collisions

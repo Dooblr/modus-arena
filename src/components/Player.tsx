@@ -20,6 +20,10 @@ const PLAYER_RADIUS = 0.5
 const MAX_JUMPS = 2
 const SHOOT_INTERVAL = 2.0
 
+// Floor boundaries
+const FLOOR_SIZE = 50
+const FLOOR_BOUNDARY = (FLOOR_SIZE / 2) - PLAYER_RADIUS
+
 interface Platform {
   size: { x: number; y: number; z: number }
   position: { x: number; y: number; z: number }
@@ -183,6 +187,12 @@ export const Player: FC = () => {
         hasCollision = true
         break
       }
+    }
+
+    // Enforce floor boundaries
+    if (!hasCollision) {
+      nextPosition.x = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, nextPosition.x))
+      nextPosition.z = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, nextPosition.z))
     }
 
     // Update position

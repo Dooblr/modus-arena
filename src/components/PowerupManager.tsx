@@ -19,9 +19,14 @@ const XP_AMOUNT = 20
 const HEALTH_AMOUNT = 20
 const POWERUP_LIFETIME = 10 // seconds
 const SPAWN_INTERVAL = 10 // seconds
-const SPAWN_RADIUS = 15
+const MIN_SPAWN_DISTANCE = 5 // Minimum distance from player
+const MAX_SPAWN_DISTANCE = 15 // Maximum distance from player
 const XP_COLOR = '#00ffff'
 const HEALTH_COLOR = '#ff0088'
+
+// Floor boundaries
+const FLOOR_SIZE = 50
+const FLOOR_BOUNDARY = FLOOR_SIZE / 2 - 1 // Keep powerups 1 unit from edge
 
 export const PowerupManager: FC = () => {
   const [powerups, setPowerups] = useState<Powerup[]>([])
@@ -29,36 +34,56 @@ export const PowerupManager: FC = () => {
   const lastSpawnTime = useRef(0)
   const playerPosition = useRef(new THREE.Vector3())
   
-  // Access store values individually to prevent unnecessary rerenders
   const isPaused = useGameState(state => state.isPaused)
   const addXP = useGameState(state => state.addXP)
   const addHealth = useGameState(state => state.addHealth)
   const { playPowerupSound } = useGameAudio()
 
+  // Function to clamp a position within floor boundaries
+  const clampToFloorBounds = (position: THREE.Vector3) => {
+    position.x = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, position.x))
+    position.z = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, position.z))
+    return position
+  }
+
+  // Get a random spawn position relative to player
+  const getRandomSpawnPosition = useCallback((playerPos: THREE.Vector3) => {
+    const angle = Math.random() * Math.PI * 2
+    const distance = MIN_SPAWN_DISTANCE + Math.random() * (MAX_SPAWN_DISTANCE - MIN_SPAWN_DISTANCE)
+    
+    // Calculate initial position
+    const position = new THREE.Vector3(
+      playerPos.x + Math.cos(angle) * distance,
+      playerPos.y,
+      playerPos.z + Math.sin(angle) * distance
+    )
+
+    // Clamp to floor boundaries
+    return clampToFloorBounds(position)
+  }, [])
+
   // Memoize spawn function to prevent recreation on each render
   const spawnPowerup = useCallback((type: 'xp' | 'health', position: THREE.Vector3) => {
+    // Ensure position is within bounds
+    const clampedPosition = clampToFloorBounds(position.clone())
+    
     setPowerups(prev => [...prev, {
       id: nextId.current++,
-      position: position.clone(),
+      position: clampedPosition,
       type,
       spawnTime: Date.now() / 1000
     }])
   }, [])
 
-  // Make spawnPowerup available globally
+  // Make spawnPowerup available globally for enemy drops
   if (typeof window !== 'undefined') {
-    (window as any).spawnPowerup = spawnPowerup
+    (window as any).spawnPowerup = (type: 'xp' | 'health', position: THREE.Vector3) => {
+      // For enemy drops, use the enemy's position but match player's height and clamp to bounds
+      const spawnPos = position.clone()
+      spawnPos.y = playerPosition.current.y
+      spawnPowerup(type, clampToFloorBounds(spawnPos))
+    }
   }
-
-  // Memoize random spawn position function
-  const getRandomSpawnPosition = useCallback(() => {
-    const angle = Math.random() * Math.PI * 2
-    return new THREE.Vector3(
-      Math.cos(angle) * SPAWN_RADIUS,
-      POWERUP_SIZE,
-      Math.sin(angle) * SPAWN_RADIUS
-    )
-  }, [])
 
   useFrame(({ scene }, delta) => {
     if (isPaused) return
@@ -73,7 +98,7 @@ export const PowerupManager: FC = () => {
 
     // Randomly spawn health powerups
     if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
-      spawnPowerup('health', getRandomSpawnPosition())
+      spawnPowerup('health', getRandomSpawnPosition(playerPosition.current))
       lastSpawnTime.current = currentTime
     }
 
@@ -108,7 +133,9 @@ export const PowerupManager: FC = () => {
             .normalize()
             .multiplyScalar(MAGNETIZE_SPEED * (1 - distanceToPlayer / MAGNETIZE_DISTANCE))
 
+          // Update position and clamp to bounds
           powerup.position.add(direction)
+          clampToFloorBounds(powerup.position)
           needsUpdate = true
         }
 
