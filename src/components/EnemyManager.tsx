@@ -1,4 +1,4 @@
-import { FC, useRef, useState } from 'react'
+import { FC, useState, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameState } from '../store/gameState'
@@ -31,10 +31,6 @@ const WOBBLE_AMOUNT = 0.4
 const INITIAL_HEALTH = 3
 const PARTICLE_LIFETIME = 1 // seconds
 
-// Color constants
-const FULL_HEALTH_COLOR = new THREE.Color('#00ff00')  // Green
-const LOW_HEALTH_COLOR = new THREE.Color('#ff0000')   // Red
-
 // Terrain constants
 const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
 const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
@@ -50,19 +46,8 @@ export const EnemyManager: FC = () => {
   const takeDamage = useGameState(state => state.takeDamage)
   const isPaused = useGameState(state => state.isPaused)
   const { playEnemyHitSound, playEnemyDeathSound } = useGameAudio()
-  const addXP = useGameState(state => state.addXP)
 
-  // Function to get a random spawn position on the perimeter
-  const getRandomSpawnPosition = () => {
-    const angle = Math.random() * Math.PI * 2
-    return new THREE.Vector3(
-      Math.cos(angle) * SPAWN_RADIUS,
-      ENEMY_SIZE / 2,
-      Math.sin(angle) * SPAWN_RADIUS
-    )
-  }
-
-  // Check if a sphere collides with terrain box
+  // Function to check if a position collides with terrain
   const checkTerrainCollision = (position: THREE.Vector3) => {
     // Calculate closest point on terrain box to sphere center
     const closestX = Math.max(
@@ -89,16 +74,66 @@ export const EnemyManager: FC = () => {
     return distance < ENEMY_RADIUS
   }
 
-  // Helper function to interpolate color based on health
-  const getEnemyColor = (health: number) => {
-    const healthPercent = health / INITIAL_HEALTH
-    return FULL_HEALTH_COLOR.clone().lerp(LOW_HEALTH_COLOR, 1 - healthPercent)
+  // Function to calculate path around terrain
+  const calculatePathAroundTerrain = (currentPos: THREE.Vector3, targetPos: THREE.Vector3) => {
+    const direction = new THREE.Vector3()
+      .subVectors(targetPos, currentPos)
+      .normalize()
+
+    // Test position after potential move
+    const testPosition = currentPos.clone().add(
+      direction.clone().multiplyScalar(ENEMY_SPEED)
+    )
+
+    // If we're about to hit terrain, try to move around it
+    if (checkTerrainCollision(testPosition)) {
+      // Determine which side of the terrain we're on
+      const sideOffset = currentPos.x < TERRAIN_POSITION.x ? -1 : 1
+      
+      // Try to move more vertically if we're close to terrain height
+      if (Math.abs(currentPos.y - TERRAIN_POSITION.y) < TERRAIN_SIZE.y) {
+        direction.y += 0.5
+      }
+      
+      // Add horizontal offset to move around
+      direction.x += sideOffset * 0.5
+      direction.normalize()
+
+      // If still colliding, try moving more drastically
+      const secondTestPosition = currentPos.clone().add(
+        direction.clone().multiplyScalar(ENEMY_SPEED)
+      )
+      if (checkTerrainCollision(secondTestPosition)) {
+        direction.x += sideOffset * 1.0
+        direction.y += 1.0
+        direction.normalize()
+      }
+    }
+
+    return direction
+  }
+
+  // Function to get a random spawn position on the perimeter
+  const getRandomSpawnPosition = () => {
+    const angle = Math.random() * Math.PI * 2
+    const position = new THREE.Vector3(
+      Math.cos(angle) * SPAWN_RADIUS,
+      ENEMY_SIZE / 2,
+      Math.sin(angle) * SPAWN_RADIUS
+    )
+
+    // Ensure spawn position doesn't collide with terrain
+    if (checkTerrainCollision(position)) {
+      position.y = TERRAIN_POSITION.y + TERRAIN_SIZE.y + ENEMY_SIZE
+    }
+
+    return position
   }
 
   useFrame(({ scene, clock }, delta) => {
     if (isPaused) return
 
-    const currentTime = clock.getElapsedTime()
+    const currentTime = performance.now() / 1000
 
     // Find player position
     const player = scene.getObjectByName('player')
@@ -128,12 +163,11 @@ export const EnemyManager: FC = () => {
       setEnemies(prev => 
         prev
           .map(enemy => {
-            const direction = new THREE.Vector3()
-              .subVectors(playerPosition.current, enemy.position)
-              .normalize()
-              .multiplyScalar(ENEMY_SPEED)
-
-            const newPosition = enemy.position.clone().add(direction)
+            // Calculate path considering terrain
+            const direction = calculatePathAroundTerrain(enemy.position, playerPosition.current)
+            const newPosition = enemy.position.clone().add(
+              direction.multiplyScalar(ENEMY_SPEED)
+            )
 
             // Check for projectile collisions
             let newHealth = enemy.health
@@ -149,10 +183,9 @@ export const EnemyManager: FC = () => {
               }
             })
 
-            // Only update position if it doesn't result in terrain collision
             return {
               ...enemy,
-              position: checkTerrainCollision(newPosition) ? enemy.position : newPosition,
+              position: newPosition,
               health: newHealth
             }
           })
@@ -212,9 +245,6 @@ export const EnemyManager: FC = () => {
           .addScaledVector(perpUp, verticalOffset)
           .addScaledVector(perpSide, horizontalOffset)
 
-        // Get interpolated color based on health
-        const enemyColor = getEnemyColor(enemy.health)
-        
         return (
           <group 
             key={enemy.id}
@@ -226,8 +256,8 @@ export const EnemyManager: FC = () => {
             >
               <sphereGeometry args={[ENEMY_SIZE / 2, 16, 16]} />
               <meshStandardMaterial
-                color={enemyColor}
-                emissive={enemyColor}
+                color="#00ff00"
+                emissive="#00ff00"
                 emissiveIntensity={0.2}
                 metalness={0.8}
                 roughness={0.2}
