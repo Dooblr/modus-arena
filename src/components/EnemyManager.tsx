@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { useGameState } from '../store/gameState'
 import { FireworkEffect } from './FireworkEffect'
 import { useGameAudio } from '../hooks/useGameAudio'
+import { usePowerupStore } from './PowerupManager'
 
 interface Enemy {
   id: number
@@ -50,6 +51,7 @@ export const EnemyManager: FC = () => {
   const takeDamage = useGameState(state => state.takeDamage)
   const isPaused = useGameState(state => state.isPaused)
   const { playEnemyHitSound, playEnemyDeathSound } = useGameAudio()
+  const spawnPowerup = usePowerupStore(state => state.spawnPowerup)
 
   // Function to get a random spawn position on the perimeter
   const getRandomSpawnPosition = () => {
@@ -205,6 +207,8 @@ export const EnemyManager: FC = () => {
                 position: enemy.position.clone(),
                 startTime: currentTime
               }])
+              // Spawn XP powerup at enemy position
+              spawnPowerup('xp', enemy.position)
               return false
             }
 

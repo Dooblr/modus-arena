@@ -7,6 +7,9 @@ import './HUD.scss'
 export const HUD: FC = () => {
   const [isMusicStarted, setIsMusicStarted] = useState(false)
   const health = useGameState(state => state.health)
+  const level = useGameState(state => state.level)
+  const xp = useGameState(state => state.xp)
+  const xpToNextLevel = useGameState(state => state.xpToNextLevel)
   const masterVolume = useGameState(state => state.masterVolume)
   const isMuted = useGameState(state => state.isMuted)
   const setMasterVolume = useGameState(state => state.setMasterVolume)
@@ -38,6 +41,24 @@ export const HUD: FC = () => {
         </div>
         <span className="health-bar__text">
           {Math.max(0, health)}%
+        </span>
+      </div>
+
+      {/* XP Bar */}
+      <div className="xp-bar">
+        <span className="xp-bar__text">
+          Level {level}
+        </span>
+        <div className="xp-bar__container">
+          <div 
+            className="xp-bar__fill"
+            style={{ 
+              width: `${(xp / xpToNextLevel) * 100}%`
+            }} 
+          />
+        </div>
+        <span className="xp-bar__text">
+          {xp}/{xpToNextLevel} XP
         </span>
       </div>
 

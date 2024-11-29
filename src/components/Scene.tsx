@@ -7,6 +7,7 @@ import { PsychedelicShader } from '../shaders/PsychedelicShader'
 import { Player } from './Player'
 import { Terrain } from './Terrain'
 import { EnemyManager } from './EnemyManager'
+import { PowerupManager } from './PowerupManager'
 import { useGameState } from '../store/gameState'
 
 export const Scene: FC = () => {
@@ -28,6 +29,7 @@ export const Scene: FC = () => {
       <SpaceEnvironment />
       <ProjectileManager />
       <EnemyManager />
+      <PowerupManager />
       <Player />
       <Terrain />
       
