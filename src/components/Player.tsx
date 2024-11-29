@@ -6,6 +6,7 @@ import { useKeyboard } from '../hooks/useKeyboard'
 import { useProjectiles } from '../hooks/useProjectiles'
 import { useGameAudio } from '../hooks/useGameAudio'
 import { useGameState } from '../store/gameState'
+import { TERRAIN_SIZE, TERRAIN_POSITION, UPPER_PLATFORM_SIZE, UPPER_PLATFORM_POSITION } from './Terrain'
 
 const MOVEMENT_SPEED = 8
 const TURN_SPEED = 2
@@ -26,6 +27,18 @@ const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
 const FLOOR_SIZE = 50 // Size of the floor plane from Scene.tsx
 const FLOOR_BOUNDARY = FLOOR_SIZE / 2 - PLAYER_RADIUS // Account for player size
 
+// Platform constants from Platforms.tsx
+const PLATFORM_SIZE = { x: 3, y: 0.5, z: 3 }
+const PLATFORM_GAP = 4
+const PLATFORM_HEIGHT_STEP = 3
+const PLATFORM_COUNT = 5
+const PLATFORM_START = { x: -8, y: PLATFORM_SIZE.y / 2, z: -8 }
+
+interface Platform {
+  size: { x: number; y: number; z: number }
+  position: { x: number; y: number; z: number }
+}
+
 export const Player: FC = () => {
   const cameraRef = useRef<THREE.PerspectiveCamera>(null)
   const meshRef = useRef<THREE.Mesh>(null)
@@ -44,6 +57,63 @@ export const Player: FC = () => {
   const { forward, backward, left, right, strafeLeft, strafeRight, jump } = useKeyboard()
   const { spawnPlayerProjectile } = useProjectiles()
   const { playBulletSound } = useGameAudio()
+
+  // Function to check collision with a platform
+  const handlePlatformCollision = (
+    platform: Platform,
+    position: THREE.Vector3,
+    nextPosition: THREE.Vector3
+  ) => {
+    const platformMinX = platform.position.x - platform.size.x / 2
+    const platformMaxX = platform.position.x + platform.size.x / 2
+    const platformMinZ = platform.position.z - platform.size.z / 2
+    const platformMaxZ = platform.position.z + platform.size.z / 2
+    const platformTop = platform.position.y + platform.size.y / 2
+    const platformBottom = platform.position.y - platform.size.y / 2
+
+    // Check if player is within platform XZ bounds
+    const inPlatformXBounds = nextPosition.x + PLAYER_RADIUS > platformMinX && 
+                            nextPosition.x - PLAYER_RADIUS < platformMaxX
+    const inPlatformZBounds = nextPosition.z + PLAYER_RADIUS > platformMinZ && 
+                            nextPosition.z - PLAYER_RADIUS < platformMaxZ
+
+    if (inPlatformXBounds && inPlatformZBounds) {
+      // Landing on top of platform
+      if (position.y > platformTop && nextPosition.y <= platformTop + PLAYER_HEIGHT / 2) {
+        nextPosition.y = platformTop + PLAYER_HEIGHT / 2
+        velocity.current.y = 0
+        jumpCount.current = 0
+        return true
+      }
+      // Hitting bottom of platform
+      else if (position.y < platformBottom && nextPosition.y >= platformBottom - PLAYER_HEIGHT / 2) {
+        nextPosition.y = platformBottom - PLAYER_HEIGHT / 2
+        velocity.current.y = 0
+        return true
+      }
+      // Side collision when at platform height
+      else if (nextPosition.y < platformTop && nextPosition.y > platformBottom) {
+        if (position.x < platformMinX) {
+          nextPosition.x = platformMinX - PLAYER_RADIUS
+          velocity.current.x = Math.min(0, velocity.current.x)
+        }
+        else if (position.x > platformMaxX) {
+          nextPosition.x = platformMaxX + PLAYER_RADIUS
+          velocity.current.x = Math.max(0, velocity.current.x)
+        }
+        if (position.z < platformMinZ) {
+          nextPosition.z = platformMinZ - PLAYER_RADIUS
+          velocity.current.z = Math.min(0, velocity.current.z)
+        }
+        else if (position.z > platformMaxZ) {
+          nextPosition.z = platformMaxZ + PLAYER_RADIUS
+          velocity.current.z = Math.max(0, velocity.current.z)
+        }
+        return true
+      }
+    }
+    return false
+  }
 
   useFrame((_, delta) => {
     if (!meshRef.current || !cameraRef.current || isPaused) return
@@ -112,10 +182,6 @@ export const Player: FC = () => {
       position.z + velocity.current.z * delta
     )
 
-    // Enforce floor plane boundaries
-    nextPosition.x = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, nextPosition.x))
-    nextPosition.z = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, nextPosition.z))
-
     // Ground collision
     const groundY = PLAYER_HEIGHT / 2
     if (nextPosition.y <= groundY) {
@@ -124,51 +190,15 @@ export const Player: FC = () => {
       jumpCount.current = 0
     }
 
-    // Terrain boundaries
-    const terrainMinX = TERRAIN_POSITION.x - TERRAIN_SIZE.x / 2
-    const terrainMaxX = TERRAIN_POSITION.x + TERRAIN_SIZE.x / 2
-    const terrainMinZ = TERRAIN_POSITION.z - TERRAIN_SIZE.z / 2
-    const terrainMaxZ = TERRAIN_POSITION.z + TERRAIN_SIZE.z / 2
-    const terrainTop = TERRAIN_POSITION.y + TERRAIN_SIZE.y / 2
+    // Check collisions with both platforms
+    const mainPlatform = { size: TERRAIN_SIZE, position: TERRAIN_POSITION }
+    const upperPlatform = { size: UPPER_PLATFORM_SIZE, position: UPPER_PLATFORM_POSITION }
 
-    // Check if player is within terrain XZ bounds (with buffer for player size)
-    const inTerrainXBounds = nextPosition.x + PLAYER_RADIUS > terrainMinX && 
-                           nextPosition.x - PLAYER_RADIUS < terrainMaxX
-    const inTerrainZBounds = nextPosition.z + PLAYER_RADIUS > terrainMinZ && 
-                           nextPosition.z - PLAYER_RADIUS < terrainMaxZ
+    handlePlatformCollision(mainPlatform, position, nextPosition)
+    handlePlatformCollision(upperPlatform, position, nextPosition)
 
-    // Terrain collision handling
-    if (inTerrainXBounds && inTerrainZBounds) {
-      // Check if we're above the terrain and falling onto it
-      if (position.y > terrainTop && nextPosition.y <= terrainTop + PLAYER_HEIGHT / 2) {
-        nextPosition.y = terrainTop + PLAYER_HEIGHT / 2
-        velocity.current.y = 0
-        jumpCount.current = 0
-      }
-      // Block side movement if we're at terrain height
-      else if (nextPosition.y < terrainTop) {
-        // Determine which side we're coming from and block accordingly
-        if (position.x < terrainMinX) {
-          nextPosition.x = terrainMinX - PLAYER_RADIUS
-          velocity.current.x = Math.min(0, velocity.current.x)
-        }
-        else if (position.x > terrainMaxX) {
-          nextPosition.x = terrainMaxX + PLAYER_RADIUS
-          velocity.current.x = Math.max(0, velocity.current.x)
-        }
-        if (position.z < terrainMinZ) {
-          nextPosition.z = terrainMinZ - PLAYER_RADIUS
-          velocity.current.z = Math.min(0, velocity.current.z)
-        }
-        else if (position.z > terrainMaxZ) {
-          nextPosition.z = terrainMaxZ + PLAYER_RADIUS
-          velocity.current.z = Math.max(0, velocity.current.z)
-        }
-      }
-    }
-
-    // Apply final position
-    position.copy(nextPosition)
+    // Update position
+    meshRef.current.position.copy(nextPosition)
 
     // Update camera
     const cameraX = position.x - Math.sin(playerRotation.current) * CAMERA_DISTANCE
