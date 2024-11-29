@@ -35,6 +35,11 @@ export const Player: FC = () => {
   const velocity = useRef(new THREE.Vector3())
   const lastShootTime = useRef(0)
   const isPaused = useGameState(state => state.isPaused)
+  const healthRegenRate = useGameState(state => state.healthRegenRate)
+  const moveSpeedMultiplier = useGameState(state => state.moveSpeedMultiplier)
+  const attackSpeedMultiplier = useGameState(state => state.attackSpeedMultiplier)
+  const addHealth = useGameState(state => state.addHealth)
+  const lastRegenTime = useRef(0)
 
   const { forward, backward, left, right, strafeLeft, strafeRight, jump } = useKeyboard()
   const { spawnPlayerProjectile } = useProjectiles()
@@ -44,6 +49,15 @@ export const Player: FC = () => {
     if (!meshRef.current || !cameraRef.current || isPaused) return
     
     const position = meshRef.current.position
+
+    // Apply health regeneration
+    if (healthRegenRate > 0) {
+      const currentTime = performance.now() / 1000
+      if (currentTime - lastRegenTime.current >= 1) { // Check every second
+        addHealth(healthRegenRate)
+        lastRegenTime.current = currentTime
+      }
+    }
 
     // Rotate player with A/D
     if (left) playerRotation.current += TURN_SPEED * 0.02
@@ -56,25 +70,25 @@ export const Player: FC = () => {
     const right_x = Math.cos(playerRotation.current)
     const right_z = -Math.sin(playerRotation.current)
 
-    // Calculate movement
+    // Calculate movement with speed multiplier
     let moveX = 0
     let moveZ = 0
 
     if (forward) {
-      moveX += forward_x * MOVEMENT_SPEED
-      moveZ += forward_z * MOVEMENT_SPEED
+      moveX += forward_x * MOVEMENT_SPEED * moveSpeedMultiplier
+      moveZ += forward_z * MOVEMENT_SPEED * moveSpeedMultiplier
     }
     if (backward) {
-      moveX -= forward_x * MOVEMENT_SPEED
-      moveZ -= forward_z * MOVEMENT_SPEED
+      moveX -= forward_x * MOVEMENT_SPEED * moveSpeedMultiplier
+      moveZ -= forward_z * MOVEMENT_SPEED * moveSpeedMultiplier
     }
     if (strafeLeft) {
-      moveX += right_x * STRAFE_SPEED
-      moveZ += right_z * STRAFE_SPEED
+      moveX += right_x * STRAFE_SPEED * moveSpeedMultiplier
+      moveZ += right_z * STRAFE_SPEED * moveSpeedMultiplier
     }
     if (strafeRight) {
-      moveX -= right_x * STRAFE_SPEED
-      moveZ -= right_z * STRAFE_SPEED
+      moveX -= right_x * STRAFE_SPEED * moveSpeedMultiplier
+      moveZ -= right_z * STRAFE_SPEED * moveSpeedMultiplier
     }
 
     // Apply horizontal movement
@@ -164,9 +178,9 @@ export const Player: FC = () => {
     cameraRef.current.position.set(cameraX, cameraY, cameraZ)
     cameraRef.current.lookAt(position)
 
-    // Continuous shooting with sound
+    // Continuous shooting with sound and attack speed multiplier
     const currentTime = performance.now() / 1000
-    if (currentTime - lastShootTime.current >= SHOOT_INTERVAL) {
+    if (currentTime - lastShootTime.current >= SHOOT_INTERVAL * attackSpeedMultiplier) {
       const shootDirection = new THREE.Vector3(
         Math.sin(playerRotation.current),
         0,

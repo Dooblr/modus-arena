@@ -2,12 +2,16 @@ import { create } from 'zustand'
 
 interface GameState {
   isPaused: boolean
+  isSelectingUpgrade: boolean
   masterVolume: number
   isMuted: boolean
   health: number
   level: number
   xp: number
   xpToNextLevel: number
+  attackSpeedMultiplier: number
+  healthRegenRate: number
+  moveSpeedMultiplier: number
   setPaused: (paused: boolean) => void
   togglePause: () => void
   setMasterVolume: (volume: number) => void
@@ -16,6 +20,7 @@ interface GameState {
   takeDamage: (amount: number) => void
   addHealth: (amount: number) => void
   addXP: (amount: number) => void
+  selectUpgrade: (upgradeId: string) => void
 }
 
 const calculateXPForLevel = (level: number) => {
@@ -24,6 +29,7 @@ const calculateXPForLevel = (level: number) => {
 
 export const useGameState = create<GameState>((set) => ({
   isPaused: false,
+  isSelectingUpgrade: false,
   masterVolume: 0.5,
   isMuted: false,
   previousVolume: 0.5,
@@ -31,6 +37,9 @@ export const useGameState = create<GameState>((set) => ({
   level: 1,
   xp: 0,
   xpToNextLevel: calculateXPForLevel(1),
+  attackSpeedMultiplier: 1,
+  healthRegenRate: 0,
+  moveSpeedMultiplier: 1,
 
   setPaused: (paused) => set({ isPaused: paused }),
   
@@ -64,19 +73,49 @@ export const useGameState = create<GameState>((set) => ({
     let newXP = state.xp + amount
     let newLevel = state.level
     let newXPToNextLevel = state.xpToNextLevel
+    let shouldShowUpgrade = false
 
     // Level up if we have enough XP
     while (newXP >= newXPToNextLevel) {
       newXP -= newXPToNextLevel
       newLevel++
       newXPToNextLevel = calculateXPForLevel(newLevel)
+      shouldShowUpgrade = true
       console.log(`Level Up! Now level ${newLevel}`)
     }
 
     return {
       xp: newXP,
       level: newLevel,
-      xpToNextLevel: newXPToNextLevel
+      xpToNextLevel: newXPToNextLevel,
+      isPaused: shouldShowUpgrade,
+      isSelectingUpgrade: shouldShowUpgrade
     }
+  }),
+
+  selectUpgrade: (upgradeId: string) => set((state) => {
+    console.log(`Selected upgrade: ${upgradeId}`)
+    
+    let updates: Partial<GameState> = {
+      isSelectingUpgrade: false,
+      isPaused: false
+    }
+
+    switch (upgradeId) {
+      case 'attack_speed':
+        updates.attackSpeedMultiplier = state.attackSpeedMultiplier * 0.85 // 15% faster
+        console.log('Attack speed increased! New multiplier:', updates.attackSpeedMultiplier)
+        break
+      case 'health_regen':
+        updates.healthRegenRate = state.healthRegenRate + 0.5 // +0.5 health per second
+        console.log('Health regen increased! New rate:', updates.healthRegenRate)
+        break
+      case 'move_speed':
+        updates.moveSpeedMultiplier = state.moveSpeedMultiplier * 1.1 // 10% faster
+        console.log('Move speed increased! New multiplier:', updates.moveSpeedMultiplier)
+        break
+    }
+
+    return updates
   }),
 })) 
