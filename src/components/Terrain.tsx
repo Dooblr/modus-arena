@@ -2,6 +2,7 @@ import { FC, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { PsychedelicShader } from '../shaders/PsychedelicShader'
+import { IcyPsychedelicShader } from '../shaders/IcyPsychedelicShader'
 
 // Floor and platform constants
 const FLOOR_SIZE = 50 // Size of the main floor plane
@@ -55,9 +56,10 @@ const UPPER_PLATFORM_SECTIONS = [
 interface TerrainPlatform {
   size: { x: number; y: number; z: number }
   position: { x: number; y: number; z: number }
+  isUpperPlatform?: boolean
 }
 
-const TerrainMesh: FC<TerrainPlatform> = ({ size, position }) => {
+const TerrainMesh: FC<TerrainPlatform> = ({ size, position, isUpperPlatform }) => {
   const materialRef = useRef<THREE.ShaderMaterial>(null)
 
   useFrame(({ clock }) => {
@@ -65,6 +67,8 @@ const TerrainMesh: FC<TerrainPlatform> = ({ size, position }) => {
       materialRef.current.uniforms.uTime.value = clock.getElapsedTime()
     }
   })
+
+  const shader = isUpperPlatform ? IcyPsychedelicShader : PsychedelicShader
 
   return (
     <mesh 
@@ -75,8 +79,8 @@ const TerrainMesh: FC<TerrainPlatform> = ({ size, position }) => {
       <boxGeometry args={[size.x, size.y, size.z]} />
       <shaderMaterial
         ref={materialRef}
-        vertexShader={PsychedelicShader.vertexShader}
-        fragmentShader={PsychedelicShader.fragmentShader}
+        vertexShader={shader.vertexShader}
+        fragmentShader={shader.fragmentShader}
         uniforms={{
           uTime: { value: 0 },
         }}
@@ -108,6 +112,7 @@ export const Terrain: FC = () => {
           key={`upper-section-${index}`}
           size={section.size} 
           position={section.position} 
+          isUpperPlatform={true}
         />
       ))}
     </>
