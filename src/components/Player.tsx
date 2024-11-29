@@ -6,7 +6,7 @@ import { useKeyboard } from '../hooks/useKeyboard'
 import { useProjectiles } from '../hooks/useProjectiles'
 import { useGameAudio } from '../hooks/useGameAudio'
 import { useGameState } from '../store/gameState'
-import { TERRAIN_SIZE, TERRAIN_POSITION, UPPER_PLATFORM_SIZE, UPPER_PLATFORM_POSITION } from './Terrain'
+import { ALL_PLATFORMS } from './Terrain'
 
 const MOVEMENT_SPEED = 8
 const TURN_SPEED = 2
@@ -18,21 +18,7 @@ const STRAFE_SPEED = 6
 const GRAVITY = -30
 const PLAYER_RADIUS = 0.5
 const MAX_JUMPS = 2
-const SHOOT_INTERVAL = 2.0 // Shoot every 2 seconds
-
-// Terrain constants from Terrain.tsx
-const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
-const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
-
-const FLOOR_SIZE = 50 // Size of the floor plane from Scene.tsx
-const FLOOR_BOUNDARY = FLOOR_SIZE / 2 - PLAYER_RADIUS // Account for player size
-
-// Platform constants from Platforms.tsx
-const PLATFORM_SIZE = { x: 3, y: 0.5, z: 3 }
-const PLATFORM_GAP = 4
-const PLATFORM_HEIGHT_STEP = 3
-const PLATFORM_COUNT = 5
-const PLATFORM_START = { x: -8, y: PLATFORM_SIZE.y / 2, z: -8 }
+const SHOOT_INTERVAL = 2.0
 
 interface Platform {
   size: { x: number; y: number; z: number }
@@ -123,15 +109,15 @@ export const Player: FC = () => {
     // Apply health regeneration
     if (healthRegenRate > 0) {
       const currentTime = performance.now() / 1000
-      if (currentTime - lastRegenTime.current >= 1) { // Check every second
+      if (currentTime - lastRegenTime.current >= 1) {
         addHealth(healthRegenRate)
         lastRegenTime.current = currentTime
       }
     }
 
-    // Rotate player with A/D
-    if (left) playerRotation.current += TURN_SPEED * 0.02
-    if (right) playerRotation.current -= TURN_SPEED * 0.02
+    // Handle movement and rotation
+    if (left) playerRotation.current += TURN_SPEED * delta
+    if (right) playerRotation.current -= TURN_SPEED * delta
     meshRef.current.rotation.y = playerRotation.current
 
     // Calculate movement directions
@@ -140,7 +126,7 @@ export const Player: FC = () => {
     const right_x = Math.cos(playerRotation.current)
     const right_z = -Math.sin(playerRotation.current)
 
-    // Calculate movement with speed multiplier
+    // Calculate movement
     let moveX = 0
     let moveZ = 0
 
@@ -190,42 +176,38 @@ export const Player: FC = () => {
       jumpCount.current = 0
     }
 
-    // Check collisions with both platforms
-    const mainPlatform = { size: TERRAIN_SIZE, position: TERRAIN_POSITION }
-    const upperPlatform = { size: UPPER_PLATFORM_SIZE, position: UPPER_PLATFORM_POSITION }
-
-    handlePlatformCollision(mainPlatform, position, nextPosition)
-    handlePlatformCollision(upperPlatform, position, nextPosition)
+    // Check collisions with all platforms
+    let hasCollision = false
+    for (const platform of ALL_PLATFORMS) {
+      if (handlePlatformCollision(platform, position, nextPosition)) {
+        hasCollision = true
+        break
+      }
+    }
 
     // Update position
     meshRef.current.position.copy(nextPosition)
 
-    // Update camera
-    const cameraX = position.x - Math.sin(playerRotation.current) * CAMERA_DISTANCE
-    const cameraY = position.y + CAMERA_HEIGHT
-    const cameraZ = position.z - Math.cos(playerRotation.current) * CAMERA_DISTANCE
+    // Update camera position
+    if (cameraRef.current) {
+      const cameraPosition = new THREE.Vector3(
+        nextPosition.x - Math.sin(playerRotation.current) * CAMERA_DISTANCE,
+        nextPosition.y + CAMERA_HEIGHT,
+        nextPosition.z - Math.cos(playerRotation.current) * CAMERA_DISTANCE
+      )
+      cameraRef.current.position.copy(cameraPosition)
+      cameraRef.current.lookAt(nextPosition)
+    }
 
-    cameraRef.current.position.set(cameraX, cameraY, cameraZ)
-    cameraRef.current.lookAt(position)
-
-    // Continuous shooting with sound and attack speed multiplier
+    // Handle shooting
     const currentTime = performance.now() / 1000
     if (currentTime - lastShootTime.current >= SHOOT_INTERVAL * attackSpeedMultiplier) {
       const shootDirection = new THREE.Vector3(
         Math.sin(playerRotation.current),
         0,
         Math.cos(playerRotation.current)
-      ).normalize()
-      
-      const shootPosition = position.clone().add(
-        new THREE.Vector3(
-          shootDirection.x * 1.5,
-          PLAYER_HEIGHT / 2,
-          shootDirection.z * 1.5
-        )
       )
-      
-      spawnPlayerProjectile(shootPosition, shootDirection)
+      spawnPlayerProjectile(nextPosition.clone(), shootDirection)
       playBulletSound()
       lastShootTime.current = currentTime
     }

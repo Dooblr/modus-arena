@@ -3,13 +3,54 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { PsychedelicShader } from '../shaders/PsychedelicShader'
 
+// Floor and platform constants
+const FLOOR_SIZE = 50 // Size of the main floor plane
+const PLATFORM_HEIGHT = 15 // Height of the upper platform
+
 // Main terrain platform
 const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
 const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
 
-// Upper platform
-const UPPER_PLATFORM_SIZE = { x: 15, y: 1, z: 15 }
-const UPPER_PLATFORM_POSITION = { x: -5, y: 8, z: -5 }
+// Stepping platforms - positioned to lead to center of upper opening
+const PLATFORM_SIZE = { x: 5, y: 1, z: 5 }
+const PLATFORMS = [
+  { 
+    size: PLATFORM_SIZE,
+    position: { x: 0, y: 4, z: 0 } // First platform closer to center
+  },
+  {
+    size: PLATFORM_SIZE,
+    position: { x: 0, y: 8, z: 0 } // Second platform directly above
+  },
+  {
+    size: PLATFORM_SIZE,
+    position: { x: 0, y: 12, z: 0 } // Final platform just below the opening
+  }
+]
+
+// Upper platform sections to create a hole
+const UPPER_PLATFORM_SECTIONS = [
+  // Back section
+  {
+    size: { x: FLOOR_SIZE, y: 1, z: FLOOR_SIZE / 2 - 4 },
+    position: { x: 0, y: PLATFORM_HEIGHT, z: -FLOOR_SIZE / 4 - 2 }
+  },
+  // Front section
+  {
+    size: { x: FLOOR_SIZE, y: 1, z: FLOOR_SIZE / 2 - 4 },
+    position: { x: 0, y: PLATFORM_HEIGHT, z: FLOOR_SIZE / 4 + 2 }
+  },
+  // Left section
+  {
+    size: { x: FLOOR_SIZE / 2 - 4, y: 1, z: 8 },
+    position: { x: -FLOOR_SIZE / 4 - 2, y: PLATFORM_HEIGHT, z: 0 }
+  },
+  // Right section
+  {
+    size: { x: FLOOR_SIZE / 2 - 4, y: 1, z: 8 },
+    position: { x: FLOOR_SIZE / 4 + 2, y: PLATFORM_HEIGHT, z: 0 }
+  }
+]
 
 interface TerrainPlatform {
   size: { x: number; y: number; z: number }
@@ -52,11 +93,30 @@ export const Terrain: FC = () => {
       {/* Main terrain platform */}
       <TerrainMesh size={TERRAIN_SIZE} position={TERRAIN_POSITION} />
       
-      {/* Upper platform */}
-      <TerrainMesh size={UPPER_PLATFORM_SIZE} position={UPPER_PLATFORM_POSITION} />
+      {/* Stepping platforms */}
+      {PLATFORMS.map((platform, index) => (
+        <TerrainMesh 
+          key={`platform-${index}`}
+          size={platform.size} 
+          position={platform.position} 
+        />
+      ))}
+
+      {/* Upper platform sections */}
+      {UPPER_PLATFORM_SECTIONS.map((section, index) => (
+        <TerrainMesh 
+          key={`upper-section-${index}`}
+          size={section.size} 
+          position={section.position} 
+        />
+      ))}
     </>
   )
 }
 
-// Export constants for collision detection
-export { TERRAIN_SIZE, TERRAIN_POSITION, UPPER_PLATFORM_SIZE, UPPER_PLATFORM_POSITION } 
+// Export all platform data for collision detection
+export const ALL_PLATFORMS = [
+  { size: TERRAIN_SIZE, position: TERRAIN_POSITION },
+  ...PLATFORMS,
+  ...UPPER_PLATFORM_SECTIONS
+] 
