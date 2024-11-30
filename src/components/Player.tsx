@@ -19,6 +19,7 @@ const GRAVITY = -30
 const PLAYER_RADIUS = 0.5
 const MAX_JUMPS = 2
 const SHOOT_INTERVAL = 1.0
+const SECOND_PLATFORM_HEIGHT = 8
 
 // Floor boundaries
 const FLOOR_SIZE = 50
@@ -43,6 +44,8 @@ export const Player: FC = () => {
   const attackSpeedMultiplier = useGameState(state => state.attackSpeedMultiplier)
   const addHealth = useGameState(state => state.addHealth)
   const lastRegenTime = useRef(0)
+  const wasAboveSecondPlatform = useRef(false)
+  const setBreachedSecondPlatform = useGameState(state => state.setBreachedSecondPlatform)
 
   const { forward, backward, left, right, strafeLeft, strafeRight, jump } = useKeyboard()
   const { spawnPlayerProjectile } = useProjectiles()
@@ -220,6 +223,14 @@ export const Player: FC = () => {
       spawnPlayerProjectile(nextPosition.clone(), shootDirection)
       playBulletSound()
       lastShootTime.current = currentTime
+    }
+
+    // Check if player has crossed the second platform height threshold
+    const isAboveSecondPlatform = meshRef.current.position.y > SECOND_PLATFORM_HEIGHT
+    if (isAboveSecondPlatform !== wasAboveSecondPlatform.current) {
+      console.log(`Player is ${isAboveSecondPlatform ? 'now above' : 'now below'} the second platform`)
+      wasAboveSecondPlatform.current = isAboveSecondPlatform
+      setBreachedSecondPlatform(isAboveSecondPlatform)
     }
   })
 

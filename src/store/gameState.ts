@@ -12,6 +12,7 @@ interface GameState {
   attackSpeedMultiplier: number
   healthRegenRate: number
   moveSpeedMultiplier: number
+  hasBreachedSecondPlatform: boolean
   setPaused: (paused: boolean) => void
   togglePause: () => void
   setMasterVolume: (volume: number) => void
@@ -21,13 +22,14 @@ interface GameState {
   addHealth: (amount: number) => void
   addXP: (amount: number) => void
   selectUpgrade: (upgradeId: string) => void
+  setBreachedSecondPlatform: (breached: boolean) => void
 }
 
 const calculateXPForLevel = (level: number) => {
   return Math.floor(100 * Math.pow(1.2, level - 1))
 }
 
-export const useGameState = create<GameState>((set) => ({
+export const useGameState = create<GameState>((set, get) => ({
   isPaused: false,
   isSelectingUpgrade: false,
   masterVolume: 0.5,
@@ -40,6 +42,7 @@ export const useGameState = create<GameState>((set) => ({
   attackSpeedMultiplier: 1,
   healthRegenRate: 0,
   moveSpeedMultiplier: 1,
+  hasBreachedSecondPlatform: false,
 
   setPaused: (paused) => set({ isPaused: paused }),
   
@@ -118,4 +121,6 @@ export const useGameState = create<GameState>((set) => ({
 
     return updates
   }),
+
+  setBreachedSecondPlatform: (breached) => set({ hasBreachedSecondPlatform: breached })
 })) 
