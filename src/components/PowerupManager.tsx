@@ -33,136 +33,140 @@ export const PowerupManager: FC = () => {
   const nextId = useRef(0)
   const lastSpawnTime = useRef(0)
   const playerPosition = useRef(new THREE.Vector3())
-  
   const isPaused = useGameState(state => state.isPaused)
   const addXP = useGameState(state => state.addXP)
   const addHealth = useGameState(state => state.addHealth)
   const { playPowerupSound } = useGameAudio()
 
-  // Function to clamp a position within floor boundaries
-  const clampToFloorBounds = (position: THREE.Vector3) => {
-    position.x = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, position.x))
-    position.z = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, position.z))
-    return position
-  }
+  const spawnPowerup = useCallback((type: 'xp' | 'health', position?: THREE.Vector3) => {
+    if (isPaused) return
 
-  // Get a random spawn position relative to player
-  const getRandomSpawnPosition = useCallback((playerPos: THREE.Vector3) => {
-    const angle = Math.random() * Math.PI * 2
-    const distance = MIN_SPAWN_DISTANCE + Math.random() * (MAX_SPAWN_DISTANCE - MIN_SPAWN_DISTANCE)
-    
-    // Calculate initial position
-    const position = new THREE.Vector3(
-      playerPos.x + Math.cos(angle) * distance,
-      playerPos.y,
-      playerPos.z + Math.sin(angle) * distance
-    )
+    let spawnPos: THREE.Vector3
+    if (position) {
+      // Use provided position but ensure it's within bounds
+      spawnPos = position.clone()
+      spawnPos.x = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, spawnPos.x))
+      spawnPos.z = Math.max(-FLOOR_BOUNDARY, Math.min(FLOOR_BOUNDARY, spawnPos.z))
+    } else {
+      // Generate random position
+      const angle = Math.random() * Math.PI * 2
+      const distance = MIN_SPAWN_DISTANCE + Math.random() * (MAX_SPAWN_DISTANCE - MIN_SPAWN_DISTANCE)
+      spawnPos = new THREE.Vector3(
+        Math.cos(angle) * distance,
+        POWERUP_SIZE,
+        Math.sin(angle) * distance
+      )
+    }
 
-    // Clamp to floor boundaries
-    return clampToFloorBounds(position)
-  }, [])
-
-  // Memoize spawn function to prevent recreation on each render
-  const spawnPowerup = useCallback((type: 'xp' | 'health', position: THREE.Vector3) => {
-    // Ensure position is within bounds
-    const clampedPosition = clampToFloorBounds(position.clone())
-    
     setPowerups(prev => [...prev, {
       id: nextId.current++,
-      position: clampedPosition,
+      position: spawnPos,
       type,
-      spawnTime: Date.now() / 1000
+      spawnTime: performance.now() / 1000
     }])
-  }, [])
+  }, [isPaused])
 
-  // Make spawnPowerup available globally for enemy drops
-  if (typeof window !== 'undefined') {
-    (window as any).spawnPowerup = (type: 'xp' | 'health', position: THREE.Vector3) => {
-      // For enemy drops, use the enemy's position but match player's height and clamp to bounds
-      const spawnPos = position.clone()
-      spawnPos.y = playerPosition.current.y
-      spawnPowerup(type, clampToFloorBounds(spawnPos))
-    }
+  // Expose spawn functions to other components
+  ;(window as any).powerupManager = {
+    spawnXPBoost: (position: THREE.Vector3) => spawnPowerup('xp', position),
+    spawnHealthBoost: (position: THREE.Vector3) => spawnPowerup('health', position)
   }
 
   useFrame(({ scene }, delta) => {
     if (isPaused) return
 
-    const currentTime = Date.now() / 1000
-
-    // Update player position
+    const currentTime = performance.now() / 1000
     const player = scene.getObjectByName('player')
+    
     if (player) {
       playerPosition.current.copy(player.position)
+
+      // Spawn random powerups periodically
+      if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
+        const type = Math.random() < 0.7 ? 'xp' : 'health'
+        spawnPowerup(type)
+        lastSpawnTime.current = currentTime
+      }
+
+      // Update and filter powerups
+      setPowerups(prev => 
+        prev
+          .map(powerup => {
+            const newPosition = powerup.position.clone()
+            
+            // Check if powerup is in magnetize range
+            const distanceToPlayer = newPosition.distanceTo(playerPosition.current)
+            if (distanceToPlayer < MAGNETIZE_DISTANCE) {
+              // Calculate direction to player
+              const direction = new THREE.Vector3()
+                .subVectors(playerPosition.current, newPosition)
+                .normalize()
+              
+              // Move powerup towards player with increasing speed as it gets closer
+              const magnetStrength = 1 - (distanceToPlayer / MAGNETIZE_DISTANCE)
+              newPosition.add(direction.multiplyScalar(MAGNETIZE_SPEED * magnetStrength * 60 * delta))
+            }
+
+            return {
+              ...powerup,
+              position: newPosition
+            }
+          })
+          .filter(powerup => {
+            // Check collection
+            const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
+            if (distanceToPlayer < COLLECTION_DISTANCE) {
+              if (powerup.type === 'xp') {
+                addXP(XP_AMOUNT)
+              } else {
+                addHealth(HEALTH_AMOUNT)
+              }
+              playPowerupSound()
+              return false
+            }
+
+            // Remove old powerups
+            if (currentTime - powerup.spawnTime > POWERUP_LIFETIME) {
+              return false
+            }
+
+            return true
+          })
+      )
     }
-
-    // Randomly spawn health powerups
-    if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
-      spawnPowerup('health', getRandomSpawnPosition(playerPosition.current))
-      lastSpawnTime.current = currentTime
-    }
-
-    // Update powerups in a single batch
-    setPowerups(prev => {
-      let needsUpdate = false
-      const updatedPowerups = prev.filter(powerup => {
-        // Remove expired powerups
-        if (currentTime - powerup.spawnTime > POWERUP_LIFETIME) {
-          needsUpdate = true
-          return false
-        }
-
-        const distanceToPlayer = powerup.position.distanceTo(playerPosition.current)
-
-        // Collect powerup if close enough
-        if (distanceToPlayer < COLLECTION_DISTANCE) {
-          if (powerup.type === 'xp') {
-            addXP(XP_AMOUNT)
-          } else if (powerup.type === 'health') {
-            addHealth(HEALTH_AMOUNT)
-          }
-          playPowerupSound()
-          needsUpdate = true
-          return false
-        }
-
-        // Magnetize towards player if within range
-        if (distanceToPlayer < MAGNETIZE_DISTANCE) {
-          const direction = new THREE.Vector3()
-            .subVectors(playerPosition.current, powerup.position)
-            .normalize()
-            .multiplyScalar(MAGNETIZE_SPEED * (1 - distanceToPlayer / MAGNETIZE_DISTANCE))
-
-          // Update position and clamp to bounds
-          powerup.position.add(direction)
-          clampToFloorBounds(powerup.position)
-          needsUpdate = true
-        }
-
-        return true
-      })
-
-      return needsUpdate ? updatedPowerups : prev
-    })
   })
 
   return (
     <>
-      {powerups.map(powerup => (
-        <mesh
-          key={powerup.id}
-          position={powerup.position}
-        >
-          <octahedronGeometry args={[POWERUP_SIZE]} />
-          <meshStandardMaterial
-            color={powerup.type === 'xp' ? XP_COLOR : HEALTH_COLOR}
-            emissive={powerup.type === 'xp' ? XP_COLOR : HEALTH_COLOR}
-            emissiveIntensity={0.5}
-            metalness={0.8}
-            roughness={0.2}
-          />
-        </mesh>
-      ))}
+      {powerups.map(powerup => {
+        const color = powerup.type === 'xp' ? XP_COLOR : HEALTH_COLOR
+        const time = performance.now() / 1000 - powerup.spawnTime
+        const scale = 1 + Math.sin(time * 4) * 0.1 // Pulsing effect
+
+        return (
+          <group 
+            key={powerup.id}
+            position={powerup.position}
+            scale={scale}
+          >
+            <mesh castShadow>
+              <boxGeometry args={[POWERUP_SIZE, POWERUP_SIZE, POWERUP_SIZE]} />
+              <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={0.5}
+                metalness={0.8}
+                roughness={0.2}
+              />
+            </mesh>
+            <pointLight
+              color={color}
+              intensity={0.5}
+              distance={2}
+            />
+          </group>
+        )
+      })}
     </>
   )
 } 
