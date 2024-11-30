@@ -72,21 +72,24 @@ export const HUD: FC = () => {
 
       {/* Upgrade Container */}
       <div className="upgrade-container">
-        <div className="upgrade-item">
-          <span className="upgrade-icon">⚡</span>
-          <span className="upgrade-text">Attack Speed</span>
-          <span className="upgrade-count">{Math.max(0, attackSpeedLevel)}</span>
-        </div>
-        <div className="upgrade-item">
-          <span className="upgrade-icon">❤️</span>
-          <span className="upgrade-text">Health Regen</span>
-          <span className="upgrade-count">{Math.max(0, healthRegenLevel)}</span>
-        </div>
-        <div className="upgrade-item">
-          <span className="upgrade-icon">👟</span>
-          <span className="upgrade-text">Move Speed</span>
-          <span className="upgrade-count">{Math.max(0, moveSpeedLevel)}</span>
-        </div>
+        {attackSpeedLevel > 0 && (
+          <div className="upgrade-item">
+            <span className="upgrade-icon">⚡</span>
+            <span className="upgrade-count">{attackSpeedLevel}</span>
+          </div>
+        )}
+        {healthRegenLevel > 0 && (
+          <div className="upgrade-item">
+            <span className="upgrade-icon">❤️</span>
+            <span className="upgrade-count">{healthRegenLevel}</span>
+          </div>
+        )}
+        {moveSpeedLevel > 0 && (
+          <div className="upgrade-item">
+            <span className="upgrade-icon">👟</span>
+            <span className="upgrade-count">{moveSpeedLevel}</span>
+          </div>
+        )}
       </div>
 
       {/* Audio Controls */}
