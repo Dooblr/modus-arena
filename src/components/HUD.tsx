@@ -2,7 +2,6 @@ import { FC, useState, useCallback } from 'react'
 import { useGameState } from '../store/gameState'
 import { useGameAudio } from '../hooks/useGameAudio'
 import { PauseButton } from './PauseButton'
-import { UpgradeDisplay } from './UpgradeDisplay'
 import './HUD.scss'
 
 export const HUD: FC = () => {
@@ -15,7 +14,15 @@ export const HUD: FC = () => {
   const isMuted = useGameState(state => state.isMuted)
   const setMasterVolume = useGameState(state => state.setMasterVolume)
   const toggleMute = useGameState(state => state.toggleMute)
+  const attackSpeedMultiplier = useGameState(state => state.attackSpeedMultiplier)
+  const healthRegenRate = useGameState(state => state.healthRegenRate)
+  const moveSpeedMultiplier = useGameState(state => state.moveSpeedMultiplier)
   const { playBackgroundMusic } = useGameAudio()
+
+  // Calculate levels based on multipliers
+  const attackSpeedLevel = Math.round((1 - attackSpeedMultiplier) / 0.15) // Each upgrade reduces by 15%
+  const healthRegenLevel = Math.round(healthRegenRate / 0.5) // Each upgrade adds 0.5
+  const moveSpeedLevel = Math.round((moveSpeedMultiplier - 1) / 0.1) // Each upgrade adds 10%
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value)
@@ -63,8 +70,24 @@ export const HUD: FC = () => {
         </span>
       </div>
 
-      {/* Upgrade Display */}
-      <UpgradeDisplay />
+      {/* Upgrade Container */}
+      <div className="upgrade-container">
+        <div className="upgrade-item">
+          <span className="upgrade-icon">⚡</span>
+          <span className="upgrade-text">Attack Speed</span>
+          <span className="upgrade-count">{Math.max(0, attackSpeedLevel)}</span>
+        </div>
+        <div className="upgrade-item">
+          <span className="upgrade-icon">❤️</span>
+          <span className="upgrade-text">Health Regen</span>
+          <span className="upgrade-count">{Math.max(0, healthRegenLevel)}</span>
+        </div>
+        <div className="upgrade-item">
+          <span className="upgrade-icon">👟</span>
+          <span className="upgrade-text">Move Speed</span>
+          <span className="upgrade-count">{Math.max(0, moveSpeedLevel)}</span>
+        </div>
+      </div>
 
       {/* Audio Controls */}
       <div className="audio-controls">
