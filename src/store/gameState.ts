@@ -63,7 +63,6 @@ export const useGameState = create<GameState>((set, get) => ({
 
   takeDamage: (amount) => set((state) => {
     const newHealth = Math.max(0, state.health - amount)
-    console.log(`Player took ${amount} damage! Health: ${newHealth}`)
     return { health: newHealth }
   }),
 

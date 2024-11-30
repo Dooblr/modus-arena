@@ -4,6 +4,23 @@ import * as THREE from 'three'
 import { useGameState } from '../store/gameState'
 import { FireworkEffect } from './FireworkEffect'
 import { useGameAudio } from '../hooks/useGameAudio'
+import { Enemy1, Enemy2 } from './enemies'
+import {
+  ENEMY_SIZE,
+  ENEMY_SPEED,
+  ENEMY_REPULSION_DISTANCE,
+  ENEMY_REPULSION_FORCE,
+  SPAWN_INTERVAL,
+  SPAWN_HEIGHT,
+  SPAWN_RADIUS,
+  INITIAL_HEALTH,
+  PROJECTILE_COLLISION_DISTANCE,
+  PLAYER_COLLISION_DISTANCE,
+  DAMAGE_COOLDOWN,
+  PLAYER_DAMAGE,
+  WOBBLE_SPEED,
+  WOBBLE_AMOUNT
+} from './enemies'
 
 // Platform definitions for collision detection
 const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
@@ -27,12 +44,18 @@ const PLATFORMS = [
 
 const FLOOR_SIZE = 50
 const FLOOR_BOUNDARY = FLOOR_SIZE / 2 - 1
+const FIRST_PLATFORM_HEIGHT = 4
+const SECOND_PLATFORM_HEIGHT = 8
+const TERRAIN_AVOIDANCE_DISTANCE = 2
+const TERRAIN_AVOIDANCE_FORCE = 0.15
+const PARTICLE_LIFETIME = 1
 
 interface Enemy {
   id: number
   position: THREE.Vector3
   spawnTime: number
   health: number
+  maxHealth: number
   type: 'enemy1' | 'enemy2'
 }
 
@@ -41,26 +64,6 @@ interface Explosion {
   position: THREE.Vector3
   startTime: number
 }
-
-const ENEMY_SIZE = 1
-const ENEMY_SPEED = 0.1
-const ENEMY_REPULSION_DISTANCE = 3
-const ENEMY_REPULSION_FORCE = 0.05
-const SPAWN_INTERVAL = 5
-const SPAWN_HEIGHT = ENEMY_SIZE / 2
-const SPAWN_RADIUS = 15
-const INITIAL_HEALTH = 3
-const PROJECTILE_COLLISION_DISTANCE = 0.5
-const PLAYER_COLLISION_DISTANCE = 1.5
-const DAMAGE_COOLDOWN = 1
-const PLAYER_DAMAGE = 10
-const PARTICLE_LIFETIME = 1
-const WOBBLE_SPEED = 2
-const WOBBLE_AMOUNT = 0.2
-const FIRST_PLATFORM_HEIGHT = 4
-const SECOND_PLATFORM_HEIGHT = 8
-const TERRAIN_AVOIDANCE_DISTANCE = 2
-const TERRAIN_AVOIDANCE_FORCE = 0.15
 
 export const EnemyManager: FC = () => {
   const [enemies, setEnemies] = useState<Enemy[]>([])
@@ -184,6 +187,7 @@ export const EnemyManager: FC = () => {
           position: spawnPosition,
           spawnTime: currentTime,
           health: INITIAL_HEALTH,
+          maxHealth: INITIAL_HEALTH,
           type: enemyType
         }])
 
@@ -261,7 +265,6 @@ export const EnemyManager: FC = () => {
             projectiles.forEach(projectile => {
               if (projectile.position.distanceTo(enemy.position) < PROJECTILE_COLLISION_DISTANCE) {
                 newHealth--
-                console.log(`Enemy ${enemy.id} hit! Health: ${newHealth}`)
                 projectile.removeFromParent()
                 playEnemyHitSound()
               }
@@ -322,25 +325,22 @@ export const EnemyManager: FC = () => {
           wobbleOffset.y = verticalOffset
         }
 
-        return (
-          <group 
+        return enemy.type === 'enemy1' ? (
+          <Enemy1
             key={enemy.id}
             position={enemy.position}
-          >
-            <mesh
-              position={wobbleOffset}
-              castShadow
-            >
-              <sphereGeometry args={[ENEMY_SIZE / 2, 16, 16]} />
-              <meshStandardMaterial
-                color={enemy.type === 'enemy1' ? '#ff0000' : '#00ff00'}
-                emissive={enemy.type === 'enemy1' ? '#ff0000' : '#00ff00'}
-                emissiveIntensity={0.2}
-                metalness={0.8}
-                roughness={0.2}
-              />
-            </mesh>
-          </group>
+            wobbleOffset={wobbleOffset}
+            health={enemy.health}
+            maxHealth={enemy.maxHealth}
+          />
+        ) : (
+          <Enemy2
+            key={enemy.id}
+            position={enemy.position}
+            wobbleOffset={wobbleOffset}
+            health={enemy.health}
+            maxHealth={enemy.maxHealth}
+          />
         )
       })}
 
