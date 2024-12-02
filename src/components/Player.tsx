@@ -1,4 +1,4 @@
-import { FC, useRef } from 'react'
+import { FC, useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
@@ -38,6 +38,9 @@ export const Player: FC = () => {
   const wasJumpPressed = useRef(false)
   const velocity = useRef(new THREE.Vector3())
   const lastShootTime = useRef(0)
+  const lastDamageTime = useRef(0)
+  const damageFlashRef = useRef<THREE.Material | null>(null)
+  const health = useGameState(state => state.health)
   const isPaused = useGameState(state => state.isPaused)
   const healthRegenRate = useGameState(state => state.healthRegenRate)
   const moveSpeedMultiplier = useGameState(state => state.moveSpeedMultiplier)
@@ -50,6 +53,20 @@ export const Player: FC = () => {
   const { forward, backward, left, right, strafeLeft, strafeRight, jump } = useKeyboard()
   const { spawnPlayerProjectile } = useProjectiles()
   const { playBulletSound } = useGameAudio()
+
+  // Track previous health to detect damage
+  const prevHealth = useRef(health)
+
+  useEffect(() => {
+    if (health < prevHealth.current) {
+      // Player took damage
+      lastDamageTime.current = performance.now() / 1000
+      if (meshRef.current && meshRef.current.material) {
+        damageFlashRef.current = meshRef.current.material
+      }
+    }
+    prevHealth.current = health
+  }, [health])
 
   // Function to check collision with a platform
   const handlePlatformCollision = (
@@ -225,6 +242,16 @@ export const Player: FC = () => {
       lastShootTime.current = currentTime
     }
 
+    // Handle damage flash effect
+    const timeSinceDamage = currentTime - lastDamageTime.current
+    if (damageFlashRef.current && timeSinceDamage < 0.2) {
+      // Flash red for 0.2 seconds
+      const flashIntensity = Math.max(0, 1 - timeSinceDamage * 5)
+      damageFlashRef.current.emissive = new THREE.Color(0xff0000).multiplyScalar(flashIntensity)
+    } else if (damageFlashRef.current) {
+      damageFlashRef.current.emissive = new THREE.Color(0x000000)
+    }
+
     // Check if player has crossed the second platform height threshold
     const isAboveSecondPlatform = meshRef.current.position.y > SECOND_PLATFORM_HEIGHT
     if (isAboveSecondPlatform !== wasAboveSecondPlatform.current) {
@@ -255,6 +282,8 @@ export const Player: FC = () => {
           color="#000000"
           roughness={0.7}
           metalness={0.1}
+          emissive="#000000"
+          emissiveIntensity={1}
         />
       </mesh>
 
