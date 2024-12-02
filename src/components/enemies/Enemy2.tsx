@@ -12,12 +12,14 @@ interface Enemy2Props {
   maxHealth: number
 }
 
-const LASER_COOLDOWN = 2 // seconds
-const LASER_SPEED = 1.2 // Increased speed
+const BASE_LASER_COOLDOWN = 2 // base cooldown in seconds
+const COOLDOWN_VARIANCE = 0.5 // random variance in seconds (+/-)
+const LASER_SPEED = 1.2
 const LASER_COLOR = '#ff0000'
 
 export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHealth }) => {
   const lastFireTime = useRef(0)
+  const nextFireDelay = useRef(BASE_LASER_COOLDOWN)
   const cannonRef = useRef<THREE.Group>(null)
   const spawnProjectile = useProjectileStore(state => state.spawnProjectile)
   const isPaused = useGameState(state => state.isPaused)
@@ -55,11 +57,11 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
 
         // Fire laser if cooldown has elapsed
         const currentTime = performance.now() / 1000
-        if (currentTime - lastFireTime.current >= LASER_COOLDOWN) {
+        if (currentTime - lastFireTime.current >= nextFireDelay.current) {
           // Calculate spawn position at the end of the cannon
           const spawnPos = position.clone()
           spawnPos.add(new THREE.Vector3(
-            Math.sin(angle) * 1.2, // Increased offset for larger enemy
+            Math.sin(angle) * 1.2,
             0.2,
             Math.cos(angle) * 1.2
           ))
@@ -68,6 +70,9 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
           const direction = directionToPlayer.clone().multiplyScalar(LASER_SPEED)
           spawnProjectile(spawnPos, direction, 'enemy')
           lastFireTime.current = currentTime
+
+          // Calculate next random fire delay
+          nextFireDelay.current = BASE_LASER_COOLDOWN + (Math.random() * COOLDOWN_VARIANCE * 2 - COOLDOWN_VARIANCE)
 
           // Play laser sound
           try {

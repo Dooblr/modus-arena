@@ -16,15 +16,15 @@ const POWERUP_SIZE = 0.3
 const MAGNETIZE_DISTANCE = 5
 const MAGNETIZE_SPEED = 0.2
 const COLLECTION_DISTANCE = 0.8
-const BASE_XP_AMOUNT = 5
-const DEFAULT_XP_COUNT = 1
+const XP_AMOUNT = 5
 const HEALTH_AMOUNT = 20
 const POWERUP_LIFETIME = 10 // seconds
-const SPAWN_INTERVAL = 10 // seconds
+const SPAWN_INTERVAL = 15 // seconds
+const HEALTH_SPAWN_CHANCE = 0.4 // 40% chance for health pickup vs XP
 const MIN_SPAWN_DISTANCE = 5 // Minimum distance from player
 const MAX_SPAWN_DISTANCE = 15 // Maximum distance from player
-const XP_COLOR = "#00ffff"
-const HEALTH_COLOR = "#ff0088"
+const XP_COLOR = '#00ffff'
+const HEALTH_COLOR = '#ff0088'
 
 // Floor boundaries
 const FLOOR_SIZE = 50
@@ -41,7 +41,7 @@ export const PowerupManager: FC = () => {
   const { playPowerupSound } = useGameAudio()
 
   const spawnPowerup = useCallback(
-    (type: "xp" | "health", position?: THREE.Vector3, xpCount: number = DEFAULT_XP_COUNT) => {
+    (type: "xp" | "health", position?: THREE.Vector3) => {
       if (isPaused) return
 
       let spawnPos: THREE.Vector3
@@ -76,7 +76,7 @@ export const PowerupManager: FC = () => {
           position: spawnPos,
           type,
           spawnTime: performance.now() / 1000,
-          amount: type === "xp" ? BASE_XP_AMOUNT * xpCount : HEALTH_AMOUNT,
+          amount: type === "xp" ? XP_AMOUNT : HEALTH_AMOUNT,
         },
       ])
     },
@@ -85,8 +85,8 @@ export const PowerupManager: FC = () => {
 
   // Expose spawn functions to other components
   ;(window as any).powerupManager = {
-    spawnXPBoost: (position: THREE.Vector3, xpCount: number = DEFAULT_XP_COUNT) =>
-      spawnPowerup("xp", position, xpCount),
+    spawnXPBoost: (position: THREE.Vector3) =>
+      spawnPowerup("xp", position),
     spawnHealthBoost: (position: THREE.Vector3) =>
       spawnPowerup("health", position),
   }
@@ -95,15 +95,25 @@ export const PowerupManager: FC = () => {
     if (isPaused) return
 
     const currentTime = performance.now() / 1000
-    const player = scene.getObjectByName("player")
-
+    const player = scene.getObjectByName('player')
+    
     if (player) {
       playerPosition.current.copy(player.position)
 
       // Spawn random powerups periodically
       if (currentTime - lastSpawnTime.current >= SPAWN_INTERVAL) {
-        const type = Math.random() < 0.7 ? "xp" : "health"
-        spawnPowerup(type)
+        const type = Math.random() < HEALTH_SPAWN_CHANCE ? 'health' : 'xp'
+        
+        // Generate random position at player's height
+        const angle = Math.random() * Math.PI * 2
+        const distance = MIN_SPAWN_DISTANCE + Math.random() * (MAX_SPAWN_DISTANCE - MIN_SPAWN_DISTANCE)
+        const spawnPos = new THREE.Vector3(
+          Math.cos(angle) * distance,
+          playerPosition.current.y,  // Spawn at player's height
+          Math.sin(angle) * distance
+        )
+        
+        spawnPowerup(type, spawnPos)
         lastSpawnTime.current = currentTime
       }
 

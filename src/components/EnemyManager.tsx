@@ -92,22 +92,40 @@ export const EnemyManager: FC = () => {
   const spawnXPPickup = (position: THREE.Vector3, enemyType: EnemyType) => {
     const powerupManager = (window as any).powerupManager
     if (powerupManager && typeof powerupManager.spawnXPBoost === 'function') {
-      // Spawn a single XP pickup with a small random offset and the enemy's XP value
+      // Spawn a single XP pickup with a small random offset
       const offset = new THREE.Vector3(
         (Math.random() - 0.5) * 0.5,
         0,
         (Math.random() - 0.5) * 0.5
       )
-      powerupManager.spawnXPBoost(
-        position.clone().add(offset),
-        ENEMY_CONFIGS[enemyType].xpDrop
+      powerupManager.spawnXPBoost(position.clone().add(offset))
+    }
+  }
+
+  const spawnHealthPickup = (position: THREE.Vector3) => {
+    const powerupManager = (window as any).powerupManager
+    if (powerupManager && typeof powerupManager.spawnHealthBoost === 'function') {
+      // Spawn health pickup with a small random offset
+      const offset = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.5,
+        0,
+        (Math.random() - 0.5) * 0.5
       )
+      powerupManager.spawnHealthBoost(position.clone().add(offset))
     }
   }
 
   const destroyEnemy = (enemy: Enemy, currentTime: number) => {
     playExplosionSound()
+    
+    // Always spawn XP
     spawnXPPickup(enemy.position, enemy.type)
+
+    // Chance to spawn health based on enemy type
+    if (Math.random() < ENEMY_CONFIGS[enemy.type].healthDropChance) {
+      spawnHealthPickup(enemy.position)
+    }
+
     setExplosions(prev => [...prev, {
       id: nextExplosionId.current++,
       position: enemy.position.clone(),

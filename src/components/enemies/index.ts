@@ -25,6 +25,7 @@ interface EnemyConfig {
   spawnHeight: number
   health: number
   xpDrop: number
+  healthDropChance: number
 }
 
 export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
@@ -34,7 +35,8 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
     spawnInterval: 5,
     spawnHeight: 0.5,
     health: 3,
-    xpDrop: 1
+    xpDrop: 1,
+    healthDropChance: 0.1
   },
   enemy2: {
     size: 1.0,
@@ -42,7 +44,8 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
     spawnInterval: 10,
     spawnHeight: 0.8,
     health: 5,
-    xpDrop: 2
+    xpDrop: 2,
+    healthDropChance: 0.2
   },
   enemy3: {
     size: 0.8,
@@ -50,6 +53,7 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
     spawnInterval: 20,
     spawnHeight: 0.8,
     health: 8,
-    xpDrop: 3
+    xpDrop: 3,
+    healthDropChance: 0.3
   }
 } 
