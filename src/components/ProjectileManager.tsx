@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameState } from '../store/gameState'
 import { useProjectileStore } from '../hooks/useProjectiles'
+import { ALL_PLATFORMS } from './Terrain'
 
 interface Projectile {
   id: number
@@ -13,8 +14,7 @@ interface Projectile {
 
 const PROJECTILE_SPEED = 0.5
 const MAX_DISTANCE = 50
-const HOMING_RANGE = 10
-const HOMING_STRENGTH = 0.1
+const PROJECTILE_SIZE = 0.2
 const ENEMY_PROJECTILE_DAMAGE = 10
 const PLAYER_COLLISION_DISTANCE = 0.8
 
@@ -39,6 +39,28 @@ export const ProjectileManager: FC = () => {
     }
   })
 
+  const checkTerrainCollision = (position: THREE.Vector3) => {
+    // Create collision box for projectile
+    const projectileBox = new THREE.Box3().setFromCenterAndSize(
+      position,
+      new THREE.Vector3(PROJECTILE_SIZE, PROJECTILE_SIZE, PROJECTILE_SIZE)
+    )
+
+    // Check collision with each platform
+    for (const platform of ALL_PLATFORMS) {
+      const platformBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(platform.position.x, platform.position.y, platform.position.z),
+        new THREE.Vector3(platform.size.x, platform.size.y, platform.size.z)
+      )
+
+      if (projectileBox.intersectsBox(platformBox)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
   useFrame(({ scene }) => {
     if (isPaused) return // Skip updates when paused
 
@@ -54,7 +76,7 @@ export const ProjectileManager: FC = () => {
           if (hasHomingWeapon && projectile.type === 'player') {
             // Find closest enemy
             let closestEnemy: THREE.Object3D | null = null
-            let closestDistance = HOMING_RANGE
+            let closestDistance = 10 // homing range
 
             scene.children.forEach(child => {
               if (child.name === 'enemy') {
@@ -72,20 +94,29 @@ export const ProjectileManager: FC = () => {
                 .subVectors(closestEnemy.position, projectile.position)
                 .normalize()
               
-              newDirection.lerp(toEnemy, HOMING_STRENGTH).normalize()
+              newDirection.lerp(toEnemy, 0.1).normalize()
             }
+          }
+
+          // Calculate new position
+          const newPosition = projectile.position.clone().add(
+            newDirection.clone().multiplyScalar(PROJECTILE_SPEED)
+          )
+
+          // Check terrain collision before updating position
+          if (checkTerrainCollision(newPosition)) {
+            return null // Remove projectile if it hits terrain
           }
 
           return {
             ...projectile,
-            direction: newDirection,
-            position: projectile.position.clone().add(
-              newDirection.clone().multiplyScalar(PROJECTILE_SPEED)
-            )
+            position: newPosition,
+            direction: newDirection
           }
         })
-        // Remove projectiles that have traveled too far or hit the player
-        .filter(projectile => {
+        .filter((projectile): projectile is Projectile => {
+          if (!projectile) return false // Remove null projectiles (hit terrain)
+
           // Check distance from origin
           if (projectile.position.length() > MAX_DISTANCE) {
             return false
