@@ -191,8 +191,14 @@ export const useGameAudio = () => {
   }, [createAudio])
 
   const playEnemyBulletSound = useCallback(() => {
-    playSound('enemyBullet')
-  }, [])
+    if (!audioElements.current.enemyBullet) {
+      audioElements.current.enemyBullet = createAudio(audioSources.enemyBullet, 0.3)
+    }
+    audioElements.current.enemyBullet.currentTime = 0
+    audioElements.current.enemyBullet?.play().catch(error => {
+      console.warn('Failed to play enemy bullet sound:', error)
+    })
+  }, [createAudio])
 
   // Cleanup on unmount
   useEffect(() => {

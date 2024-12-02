@@ -27,6 +27,17 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
   const healthPercent = health / maxHealth
   const color = new THREE.Color(0xff0000).lerp(new THREE.Color(0x808080), 1 - healthPercent)
 
+  // Initialize audio
+  useEffect(() => {
+    // Create a silent audio context on component mount
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const oscillator = audioContext.createOscillator()
+    oscillator.connect(audioContext.destination)
+    oscillator.start()
+    oscillator.stop()
+    return () => audioContext.close()
+  }, [])
+
   useFrame(({ scene }) => {
     if (isPaused) return
 
@@ -59,7 +70,11 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
           lastFireTime.current = currentTime
 
           // Play laser sound
-          playEnemyBulletSound()
+          try {
+            playEnemyBulletSound()
+          } catch (error) {
+            console.warn('Failed to play enemy bullet sound:', error)
+          }
 
           // Add muzzle flash effect
           const flash = new THREE.PointLight(LASER_COLOR, 2, 3)
