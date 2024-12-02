@@ -39,7 +39,7 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
     healthDropChance: 0.1
   },
   enemy2: {
-    size: 1.0,
+    size: 1.2,
     speed: 0.05,
     spawnInterval: 10,
     spawnHeight: 0.8,
