@@ -15,12 +15,16 @@ const PROJECTILE_SPEED = 0.5
 const MAX_DISTANCE = 50
 const HOMING_RANGE = 10
 const HOMING_STRENGTH = 0.1
+const ENEMY_PROJECTILE_DAMAGE = 10
+const PLAYER_COLLISION_DISTANCE = 0.8
 
 export const ProjectileManager: FC = () => {
   const [projectiles, setProjectiles] = useState<Projectile[]>([])
   const nextId = useRef(0)
+  const lastDamageTime = useRef(0)
   const isPaused = useGameState(state => state.isPaused)
   const hasHomingWeapon = useGameState(state => state.hasHomingWeapon)
+  const takeDamage = useGameState(state => state.takeDamage)
 
   // Register the spawn function with the store
   useProjectileStore.setState({
@@ -37,6 +41,9 @@ export const ProjectileManager: FC = () => {
 
   useFrame(({ scene }) => {
     if (isPaused) return // Skip updates when paused
+
+    const currentTime = performance.now() / 1000
+    const player = scene.getObjectByName('player')
 
     setProjectiles(prev => 
       prev
@@ -77,11 +84,20 @@ export const ProjectileManager: FC = () => {
             )
           }
         })
-        // Remove projectiles that have traveled too far
+        // Remove projectiles that have traveled too far or hit the player
         .filter(projectile => {
           // Check distance from origin
           if (projectile.position.length() > MAX_DISTANCE) {
             return false
+          }
+
+          // Check for enemy projectile collision with player
+          if (projectile.type === 'enemy' && player) {
+            const distanceToPlayer = projectile.position.distanceTo(player.position)
+            if (distanceToPlayer < PLAYER_COLLISION_DISTANCE) {
+              takeDamage(ENEMY_PROJECTILE_DAMAGE)
+              return false
+            }
           }
 
           return true

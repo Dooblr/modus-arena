@@ -2,6 +2,8 @@ import { FC, useRef, useEffect } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useProjectileStore } from '../../hooks/useProjectiles'
+import { useGameState } from '../../store/gameState'
+import { useGameAudio } from '../../hooks/useGameAudio'
 
 interface Enemy2Props {
   position: THREE.Vector3
@@ -11,19 +13,23 @@ interface Enemy2Props {
 }
 
 const LASER_COOLDOWN = 2 // seconds
-const LASER_SPEED = 0.8
+const LASER_SPEED = 1.2 // Increased speed
 const LASER_COLOR = '#ff0000'
 
 export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHealth }) => {
   const lastFireTime = useRef(0)
   const cannonRef = useRef<THREE.Group>(null)
   const spawnProjectile = useProjectileStore(state => state.spawnProjectile)
+  const isPaused = useGameState(state => state.isPaused)
+  const { playEnemyBulletSound } = useGameAudio()
 
   // Calculate color transition from red to gray based on health
   const healthPercent = health / maxHealth
   const color = new THREE.Color(0xff0000).lerp(new THREE.Color(0x808080), 1 - healthPercent)
 
   useFrame(({ scene }) => {
+    if (isPaused) return
+
     // Aim cannon at player
     if (cannonRef.current) {
       const player = scene.getObjectByName('player')
@@ -42,14 +48,24 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
           // Calculate spawn position at the end of the cannon
           const spawnPos = position.clone()
           spawnPos.add(new THREE.Vector3(
-            Math.sin(angle) * 0.8,
+            Math.sin(angle) * 1.2, // Increased offset for larger enemy
             0.2,
-            Math.cos(angle) * 0.8
+            Math.cos(angle) * 1.2
           ))
 
-          // Spawn laser projectile
-          spawnProjectile(spawnPos, directionToPlayer, 'enemy')
+          // Spawn laser projectile with increased speed
+          const direction = directionToPlayer.clone().multiplyScalar(LASER_SPEED)
+          spawnProjectile(spawnPos, direction, 'enemy')
           lastFireTime.current = currentTime
+
+          // Play laser sound
+          playEnemyBulletSound()
+
+          // Add muzzle flash effect
+          const flash = new THREE.PointLight(LASER_COLOR, 2, 3)
+          flash.position.copy(spawnPos)
+          scene.add(flash)
+          setTimeout(() => scene.remove(flash), 100)
         }
       }
     }
@@ -57,9 +73,9 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
 
   return (
     <group position={position}>
-      {/* Main body */}
+      {/* Main body - increased size */}
       <mesh position={wobbleOffset} castShadow>
-        <sphereGeometry args={[0.5, 16, 16]} />
+        <sphereGeometry args={[1.0, 16, 16]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
@@ -69,11 +85,11 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
         />
       </mesh>
 
-      {/* Laser cannon */}
-      <group ref={cannonRef} position={[0, 0.2, 0]}>
+      {/* Laser cannon - adjusted for larger size */}
+      <group ref={cannonRef} position={[0, 0.4, 0]}>
         {/* Cannon base */}
         <mesh castShadow>
-          <cylinderGeometry args={[0.2, 0.2, 0.2, 8]} />
+          <cylinderGeometry args={[0.3, 0.3, 0.3, 8]} />
           <meshStandardMaterial
             color="#444444"
             metalness={0.9}
@@ -82,8 +98,8 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
         </mesh>
 
         {/* Cannon barrel */}
-        <mesh position={[0, 0, 0.4]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.1, 0.15, 0.8, 8]} />
+        <mesh position={[0, 0, 0.6]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.15, 0.2, 1.2, 8]} />
           <meshStandardMaterial
             color="#666666"
             metalness={0.9}
@@ -93,7 +109,7 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
 
         {/* Energy core */}
         <mesh position={[0, 0, 0]} castShadow>
-          <sphereGeometry args={[0.15, 8, 8]} />
+          <sphereGeometry args={[0.2, 8, 8]} />
           <meshStandardMaterial
             color={LASER_COLOR}
             emissive={LASER_COLOR}
@@ -103,8 +119,8 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
           />
           <pointLight
             color={LASER_COLOR}
-            intensity={0.5}
-            distance={2}
+            intensity={1}
+            distance={3}
           />
         </mesh>
       </group>
@@ -112,8 +128,8 @@ export const Enemy2: FC<Enemy2Props> = ({ position, wobbleOffset, health, maxHea
       {/* Enemy light */}
       <pointLight
         color={color}
-        intensity={0.5}
-        distance={3}
+        intensity={0.8}
+        distance={4}
       />
     </group>
   )

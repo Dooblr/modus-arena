@@ -3,11 +3,12 @@ import { useGameState } from '../store/gameState'
 import music1 from '../assets/music_loop.wav'
 import music2 from '../assets/music_loop2.wav'
 import music3 from '../assets/music_loop3.wav'
-import bulletSound from '../assets/bullet3.wav'
+import bulletSound from '../assets/bullet4.wav'
 import enemyHitSound from '../assets/enemy_hit.wav'
 import enemyDeathSound from '../assets/enemy_death.wav'
 import levelUpSound from '../assets/levelup.wav'
 import powerupSound from '../assets/powerup.wav'
+import enemyBulletSound from '../assets/enemy_bullet1.wav'
 
 type AudioSources = {
   music1: string
@@ -18,6 +19,7 @@ type AudioSources = {
   bullet: string
   levelUp: string
   powerup: string
+  enemyBullet: string
 }
 
 const audioSources: AudioSources = {
@@ -29,6 +31,7 @@ const audioSources: AudioSources = {
   bullet: bulletSound,
   levelUp: levelUpSound,
   powerup: powerupSound,
+  enemyBullet: enemyBulletSound,
 }
 
 const FADE_DURATION = 2 // seconds
@@ -187,6 +190,10 @@ export const useGameAudio = () => {
     audioElements.current.powerup?.play()
   }, [createAudio])
 
+  const playEnemyBulletSound = useCallback(() => {
+    playSound('enemyBullet')
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -202,5 +209,6 @@ export const useGameAudio = () => {
     playEnemyDeathSound,
     playLevelUpSound,
     playPowerupSound,
+    playEnemyBulletSound,
   }
 } 
