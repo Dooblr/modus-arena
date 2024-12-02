@@ -20,6 +20,7 @@ import {
   WOBBLE_SPEED,
   WOBBLE_AMOUNT
 } from './enemies'
+import { SpawnAnimation } from './enemies/SpawnAnimation'
 
 const FLOOR_SIZE = 50
 const FLOOR_BOUNDARY = FLOOR_SIZE / 2 - 1
@@ -31,11 +32,13 @@ const PARTICLE_LIFETIME = 1
 
 interface Enemy {
   id: number
-  position: THREE.Vector3
-  spawnTime: number
-  health: number
-  maxHealth: number
   type: EnemyType
+  position: THREE.Vector3
+  health: number
+  lastDamageTime: number
+  isSpawning: boolean
+  spawnTime: number
+  maxHealth: number
 }
 
 interface Explosion {
@@ -133,6 +136,95 @@ export const EnemyManager: FC = () => {
     }])
   }
 
+  const spawnEnemy = (type: EnemyType) => {
+    const config = ENEMY_CONFIGS[type]
+    const angle = Math.random() * Math.PI * 2
+    const radius = SPAWN_RADIUS
+    const x = Math.cos(angle) * radius
+    const z = Math.sin(angle) * radius
+
+    const newEnemy: Enemy = {
+      id: nextEnemyId.current++,
+      type,
+      position: new THREE.Vector3(x, config.spawnHeight, z),
+      health: config.health,
+      lastDamageTime: 0,
+      isSpawning: true,
+      spawnTime: performance.now() / 1000,
+      maxHealth: config.health
+    }
+
+    setEnemies(prev => [...prev, newEnemy])
+  }
+
+  const updateEnemyPositions = (deltaTime: number) => {
+    setEnemies(prev => prev.map(enemy => {
+      if (enemy.isSpawning) return enemy // Don't move if spawning
+
+      const config = ENEMY_CONFIGS[enemy.type]
+
+      // Calculate direction to player
+      const dirToPlayer = new THREE.Vector3()
+        .subVectors(playerPosition.current, enemy.position)
+        .normalize()
+
+      // Calculate repulsion from other enemies
+      const repulsionForce = new THREE.Vector3()
+      prev.forEach(otherEnemy => {
+        if (otherEnemy.id !== enemy.id) {
+          const distance = enemy.position.distanceTo(otherEnemy.position)
+          if (distance < ENEMY_REPULSION_DISTANCE) {
+            const force = ENEMY_REPULSION_FORCE * (1 - distance / ENEMY_REPULSION_DISTANCE)
+            const direction = new THREE.Vector3()
+              .subVectors(enemy.position, otherEnemy.position)
+              .normalize()
+            repulsionForce.add(direction.multiplyScalar(force))
+          }
+        }
+      })
+
+      // Create new position
+      const newPosition = enemy.position.clone()
+
+      if (enemy.position.y > SECOND_PLATFORM_HEIGHT) {
+        // Retreat movement
+        newPosition.y = Math.max(FIRST_PLATFORM_HEIGHT, enemy.position.y - config.speed * 2)
+        const retreatDirection = new THREE.Vector3(
+          enemy.position.x - playerPosition.current.x,
+          0,
+          enemy.position.z - playerPosition.current.z
+        ).normalize()
+        newPosition.add(retreatDirection.multiplyScalar(config.speed))
+      } else {
+        // Normal movement towards player
+        newPosition.add(dirToPlayer.multiplyScalar(config.speed))
+      }
+
+      // Apply repulsion
+      newPosition.add(repulsionForce)
+
+      // Keep at proper height
+      newPosition.y = config.spawnHeight
+
+      // Keep within floor boundaries
+      newPosition.x = THREE.MathUtils.clamp(newPosition.x, -FLOOR_BOUNDARY, FLOOR_BOUNDARY)
+      newPosition.z = THREE.MathUtils.clamp(newPosition.z, -FLOOR_BOUNDARY, FLOOR_BOUNDARY)
+
+      // After applying all movement, do one final terrain check
+      if (checkTerrainCollision(newPosition, enemy.type)) {
+        return {
+          ...enemy,
+          health: enemy.health
+        }
+      }
+
+      return {
+        ...enemy,
+        position: newPosition
+      }
+    }))
+  }
+
   useFrame(({ scene }, delta) => {
     if (isPaused) return
 
@@ -147,100 +239,12 @@ export const EnemyManager: FC = () => {
       ENEMY_TYPES.forEach(enemyType => {
         const config = ENEMY_CONFIGS[enemyType]
         if (currentTime - lastSpawnTimes.current[enemyType] >= config.spawnInterval) {
-          const angle = Math.random() * Math.PI * 2
-          let spawnPosition = new THREE.Vector3(
-            Math.cos(angle) * SPAWN_RADIUS,
-            config.spawnHeight,
-            Math.sin(angle) * SPAWN_RADIUS
-          )
-
-          // Ensure spawn position doesn't collide with terrain
-          while (checkTerrainCollision(spawnPosition, enemyType)) {
-            const newAngle = Math.random() * Math.PI * 2
-            spawnPosition = new THREE.Vector3(
-              Math.cos(newAngle) * SPAWN_RADIUS,
-              config.spawnHeight,
-              Math.sin(newAngle) * SPAWN_RADIUS
-            )
-          }
-
-          setEnemies(prev => [...prev, {
-            id: nextEnemyId.current++,
-            position: spawnPosition,
-            spawnTime: currentTime,
-            health: config.health,
-            maxHealth: config.health,
-            type: enemyType
-          }])
-
+          spawnEnemy(enemyType)
           lastSpawnTimes.current[enemyType] = currentTime
         }
       })
 
-      // Update enemy positions
-      setEnemies(prev => prev.map(enemy => {
-        const config = ENEMY_CONFIGS[enemy.type]
-
-        // Calculate direction to player
-        const dirToPlayer = new THREE.Vector3()
-          .subVectors(playerPosition.current, enemy.position)
-          .normalize()
-
-        // Calculate repulsion from other enemies
-        const repulsionForce = new THREE.Vector3()
-        prev.forEach(otherEnemy => {
-          if (otherEnemy.id !== enemy.id) {
-            const distance = enemy.position.distanceTo(otherEnemy.position)
-            if (distance < ENEMY_REPULSION_DISTANCE) {
-              const force = ENEMY_REPULSION_FORCE * (1 - distance / ENEMY_REPULSION_DISTANCE)
-              const direction = new THREE.Vector3()
-                .subVectors(enemy.position, otherEnemy.position)
-                .normalize()
-              repulsionForce.add(direction.multiplyScalar(force))
-            }
-          }
-        })
-
-        // Create new position
-        const newPosition = enemy.position.clone()
-
-        if (isAboveSecondPlatform && enemy.position.y > FIRST_PLATFORM_HEIGHT) {
-          // Retreat movement
-          newPosition.y = Math.max(FIRST_PLATFORM_HEIGHT, enemy.position.y - config.speed * 2)
-          const retreatDirection = new THREE.Vector3(
-            enemy.position.x - playerPosition.current.x,
-            0,
-            enemy.position.z - playerPosition.current.z
-          ).normalize()
-          newPosition.add(retreatDirection.multiplyScalar(config.speed))
-        } else {
-          // Normal movement towards player
-          newPosition.add(dirToPlayer.multiplyScalar(config.speed))
-        }
-
-        // Apply repulsion
-        newPosition.add(repulsionForce)
-
-        // Keep at proper height
-        newPosition.y = config.spawnHeight
-
-        // Keep within floor boundaries
-        newPosition.x = THREE.MathUtils.clamp(newPosition.x, -FLOOR_BOUNDARY, FLOOR_BOUNDARY)
-        newPosition.z = THREE.MathUtils.clamp(newPosition.z, -FLOOR_BOUNDARY, FLOOR_BOUNDARY)
-
-        // After applying all movement, do one final terrain check
-        if (checkTerrainCollision(newPosition, enemy.type)) {
-          return {
-            ...enemy,
-            health: enemy.health
-          }
-        }
-
-        return {
-          ...enemy,
-          position: newPosition
-        }
-      }))
+      updateEnemyPositions(delta)
 
       // Check for projectile collisions
       setEnemies(prev => prev.filter(enemy => {
@@ -289,46 +293,43 @@ export const EnemyManager: FC = () => {
 
   return (
     <>
-      {enemies.map(enemy => {
-        const wobbleOffset = new THREE.Vector3(
-          0,
-          Math.sin(enemy.spawnTime * WOBBLE_SPEED) * WOBBLE_AMOUNT,
-          0
-        )
-
-        switch (enemy.type) {
-          case 'enemy1':
-            return (
+      {enemies.map(enemy => (
+        <group key={enemy.id}>
+          {enemy.isSpawning ? (
+            <SpawnAnimation
+              position={enemy.position}
+              onComplete={() => {
+                setEnemies(prev => 
+                  prev.map(e => 
+                    e.id === enemy.id ? { ...e, isSpawning: false } : e
+                  )
+                )
+              }}
+            />
+          ) : (
+            // Existing enemy component rendering
+            enemy.type === 'enemy1' ? (
               <Enemy1
-                key={enemy.id}
                 position={enemy.position}
-                wobbleOffset={wobbleOffset}
                 health={enemy.health}
                 maxHealth={enemy.maxHealth}
               />
-            )
-          case 'enemy2':
-            return (
+            ) : enemy.type === 'enemy2' ? (
               <Enemy2
-                key={enemy.id}
                 position={enemy.position}
-                wobbleOffset={wobbleOffset}
                 health={enemy.health}
                 maxHealth={enemy.maxHealth}
               />
-            )
-          case 'enemy3':
-            return (
+            ) : (
               <Enemy3
-                key={enemy.id}
                 position={enemy.position}
-                wobbleOffset={wobbleOffset}
                 health={enemy.health}
                 maxHealth={enemy.maxHealth}
               />
             )
-        }
-      })}
+          )}
+        </group>
+      ))}
 
       {explosions.map(explosion => (
         <FireworkEffect

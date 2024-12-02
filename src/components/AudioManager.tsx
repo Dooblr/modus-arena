@@ -4,14 +4,14 @@ import { useGameState } from '../store/gameState'
 
 export const AudioManager: FC = () => {
   const [isInitialized, setIsInitialized] = useState(false)
-  const { playBackgroundMusic } = useGameAudio()
+  const { initializeAudio, playBackgroundMusic } = useGameAudio()
   const { masterVolume, isMuted, setMasterVolume, toggleMute } = useGameState()
 
   const startAudio = useCallback(() => {
-    const audioContext = new AudioContext()
+    initializeAudio()
     playBackgroundMusic()
     setIsInitialized(true)
-  }, [playBackgroundMusic])
+  }, [initializeAudio, playBackgroundMusic])
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value)
@@ -36,14 +36,26 @@ export const AudioManager: FC = () => {
       zIndex: 1000 
     }}>
       {!isInitialized && (
-        <button onClick={startAudio}>
-          Start Music
+        <button 
+          onClick={startAudio}
+          style={{
+            padding: '10px 20px',
+            background: '#4a9eff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          Click to Start Game Audio
         </button>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <button 
           onClick={handleMuteClick}
           style={{ minWidth: '30px' }}
+          disabled={!isInitialized}
         >
           {isMuted ? '🔇' : masterVolume > 0.5 ? '🔊' : masterVolume > 0 ? '🔉' : '🔈'}
         </button>
@@ -55,6 +67,7 @@ export const AudioManager: FC = () => {
           value={isMuted ? 0 : masterVolume}
           onChange={handleVolumeChange}
           style={{ width: '100px' }}
+          disabled={!isInitialized}
         />
         <span style={{ 
           color: 'white', 
