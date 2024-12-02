@@ -31,25 +31,25 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
   enemy1: {
     size: 0.5,
     speed: 0.1,
-    spawnInterval: 3,
+    spawnInterval: 5,
     spawnHeight: 0.5,
     health: 3,
-    xpDrop: 10
+    xpDrop: 1
   },
   enemy2: {
     size: 0.5,
     speed: 0.08,
-    spawnInterval: 5,
+    spawnInterval: 10,
     spawnHeight: 0.5,
     health: 5,
-    xpDrop: 15
+    xpDrop: 2
   },
   enemy3: {
     size: 0.8,
     speed: 0.12,
-    spawnInterval: 8,
+    spawnInterval: 20,
     spawnHeight: 0.8,
     health: 8,
-    xpDrop: 20
+    xpDrop: 3
   }
 } 

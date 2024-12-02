@@ -7,6 +7,8 @@ interface Upgrade {
   description: string
   icon: string
   effect: () => void
+  maxLevel?: number
+  isAvailable?: (state: ReturnType<typeof useGameState>) => boolean
 }
 
 const UPGRADES: Upgrade[] = [
@@ -36,18 +38,35 @@ const UPGRADES: Upgrade[] = [
     effect: () => {
       // Effect will be handled by game state
     }
+  },
+  {
+    id: 'homing_weapon',
+    title: 'Homing Projectiles',
+    description: 'Your projectiles will track nearby enemies',
+    icon: '🎯',
+    maxLevel: 1,
+    isAvailable: (state) => !state.hasHomingWeapon,
+    effect: () => {
+      // Effect will be handled by game state
+    }
   }
 ]
 
 export const UpgradeSelection: FC = () => {
   const isSelectingUpgrade = useGameState(state => state.isSelectingUpgrade)
   const selectUpgrade = useGameState(state => state.selectUpgrade)
+  const gameState = useGameState()
 
   if (!isSelectingUpgrade) return null
 
   const handleUpgradeSelect = (upgrade: Upgrade) => {
     selectUpgrade(upgrade.id)
   }
+
+  // Filter available upgrades
+  const availableUpgrades = UPGRADES.filter(upgrade => 
+    !upgrade.isAvailable || upgrade.isAvailable(gameState)
+  )
 
   return (
     <div style={{
@@ -76,7 +95,7 @@ export const UpgradeSelection: FC = () => {
         justifyContent: 'center',
         flexWrap: 'wrap'
       }}>
-        {UPGRADES.map(upgrade => (
+        {availableUpgrades.map(upgrade => (
           <button
             key={upgrade.id}
             onClick={() => handleUpgradeSelect(upgrade)}

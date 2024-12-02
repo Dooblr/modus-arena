@@ -1,8 +1,8 @@
-import { FC, useRef, useState } from 'react'
+import { FC, useState, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useProjectileStore } from '../hooks/useProjectiles'
 import { useGameState } from '../store/gameState'
+import { useProjectileStore } from '../hooks/useProjectiles'
 
 interface Projectile {
   id: number
@@ -12,16 +12,15 @@ interface Projectile {
 }
 
 const PROJECTILE_SPEED = 0.5
-const MAX_DISTANCE = 100
-
-// Terrain constants from Terrain.tsx
-const TERRAIN_SIZE = { x: 10, y: 5, z: 10 }
-const TERRAIN_POSITION = { x: 10, y: TERRAIN_SIZE.y / 2, z: 0 }
+const MAX_DISTANCE = 50
+const HOMING_RANGE = 10
+const HOMING_STRENGTH = 0.1
 
 export const ProjectileManager: FC = () => {
   const [projectiles, setProjectiles] = useState<Projectile[]>([])
   const nextId = useRef(0)
   const isPaused = useGameState(state => state.isPaused)
+  const hasHomingWeapon = useGameState(state => state.hasHomingWeapon)
 
   // Register the spawn function with the store
   useProjectileStore.setState({
@@ -36,40 +35,52 @@ export const ProjectileManager: FC = () => {
     }
   })
 
-  // Check if a projectile collides with terrain
-  const checkTerrainCollision = (position: THREE.Vector3) => {
-    // Check if projectile is within terrain bounds
-    const inTerrainXBounds = position.x > TERRAIN_POSITION.x - TERRAIN_SIZE.x / 2 &&
-                            position.x < TERRAIN_POSITION.x + TERRAIN_SIZE.x / 2
-    const inTerrainYBounds = position.y > TERRAIN_POSITION.y - TERRAIN_SIZE.y / 2 &&
-                            position.y < TERRAIN_POSITION.y + TERRAIN_SIZE.y / 2
-    const inTerrainZBounds = position.z > TERRAIN_POSITION.z - TERRAIN_SIZE.z / 2 &&
-                            position.z < TERRAIN_POSITION.z + TERRAIN_SIZE.z / 2
-
-    return inTerrainXBounds && inTerrainYBounds && inTerrainZBounds
-  }
-
-  useFrame(() => {
+  useFrame(({ scene }) => {
     if (isPaused) return // Skip updates when paused
 
     setProjectiles(prev => 
       prev
-        .map(projectile => ({
-          ...projectile,
-          position: projectile.position.clone().add(
-            projectile.direction.clone().multiplyScalar(PROJECTILE_SPEED)
-          )
-        }))
-        // Remove projectiles that have traveled too far or hit terrain
+        .map(projectile => {
+          let newDirection = projectile.direction.clone()
+
+          // Apply homing behavior for player projectiles
+          if (hasHomingWeapon && projectile.type === 'player') {
+            // Find closest enemy
+            let closestEnemy: THREE.Object3D | null = null
+            let closestDistance = HOMING_RANGE
+
+            scene.children.forEach(child => {
+              if (child.name === 'enemy') {
+                const distance = projectile.position.distanceTo(child.position)
+                if (distance < closestDistance) {
+                  closestDistance = distance
+                  closestEnemy = child
+                }
+              }
+            })
+
+            // Adjust direction towards closest enemy
+            if (closestEnemy) {
+              const toEnemy = new THREE.Vector3()
+                .subVectors(closestEnemy.position, projectile.position)
+                .normalize()
+              
+              newDirection.lerp(toEnemy, HOMING_STRENGTH).normalize()
+            }
+          }
+
+          return {
+            ...projectile,
+            direction: newDirection,
+            position: projectile.position.clone().add(
+              newDirection.clone().multiplyScalar(PROJECTILE_SPEED)
+            )
+          }
+        })
+        // Remove projectiles that have traveled too far
         .filter(projectile => {
           // Check distance from origin
           if (projectile.position.length() > MAX_DISTANCE) {
-            return false
-          }
-
-          // Check terrain collision
-          if (checkTerrainCollision(projectile.position)) {
-            console.log(`Projectile ${projectile.id} hit terrain and despawned`)
             return false
           }
 
@@ -89,8 +100,8 @@ export const ProjectileManager: FC = () => {
         >
           <sphereGeometry args={[0.2, 16, 16]} />
           <meshStandardMaterial
-            color="#ff0000"
-            emissive="#ff0000"
+            color={projectile.type === 'player' ? (hasHomingWeapon ? '#00ffff' : '#ff0000') : '#ff0000'}
+            emissive={projectile.type === 'player' ? (hasHomingWeapon ? '#00ffff' : '#ff0000') : '#ff0000'}
             emissiveIntensity={0.5}
             metalness={0.8}
             roughness={0.2}

@@ -92,15 +92,16 @@ export const EnemyManager: FC = () => {
   const spawnXPPickup = (position: THREE.Vector3, enemyType: EnemyType) => {
     const powerupManager = (window as any).powerupManager
     if (powerupManager && typeof powerupManager.spawnXPBoost === 'function') {
-      const xpCount = ENEMY_CONFIGS[enemyType].xpDrop
-      for (let i = 0; i < xpCount; i++) {
-        const offset = new THREE.Vector3(
-          (Math.random() - 0.5) * 0.5,
-          0,
-          (Math.random() - 0.5) * 0.5
-        )
-        powerupManager.spawnXPBoost(position.clone().add(offset))
-      }
+      // Spawn a single XP pickup with a small random offset and the enemy's XP value
+      const offset = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.5,
+        0,
+        (Math.random() - 0.5) * 0.5
+      )
+      powerupManager.spawnXPBoost(
+        position.clone().add(offset),
+        ENEMY_CONFIGS[enemyType].xpDrop
+      )
     }
   }
 

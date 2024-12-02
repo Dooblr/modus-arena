@@ -12,6 +12,7 @@ interface GameState {
   attackSpeedMultiplier: number
   healthRegenRate: number
   moveSpeedMultiplier: number
+  hasHomingWeapon: boolean
   hasBreachedSecondPlatform: boolean
   setPaused: (paused: boolean) => void
   togglePause: () => void
@@ -42,6 +43,7 @@ export const useGameState = create<GameState>((set, get) => ({
   attackSpeedMultiplier: 0.85,
   healthRegenRate: 0,
   moveSpeedMultiplier: 1,
+  hasHomingWeapon: false,
   hasBreachedSecondPlatform: false,
 
   setPaused: (paused) => set({ isPaused: paused }),
@@ -115,6 +117,10 @@ export const useGameState = create<GameState>((set, get) => ({
       case 'move_speed':
         updates.moveSpeedMultiplier = state.moveSpeedMultiplier * 1.1 // 10% faster
         console.log('Move speed increased! New multiplier:', updates.moveSpeedMultiplier)
+        break
+      case 'homing_weapon':
+        updates.hasHomingWeapon = true
+        console.log('Homing weapon unlocked!')
         break
     }
 
