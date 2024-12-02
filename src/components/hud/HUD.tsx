@@ -1,8 +1,8 @@
 import { FC, useState, useCallback } from 'react'
-import { useGameState } from '../store/gameState'
-import { useGameAudio } from '../hooks/useGameAudio'
-import { PauseButton } from './PauseButton'
-import './HUD.scss'
+import { useGameState } from '../../store/gameState'
+import { useGameAudio } from '../../hooks/useGameAudio'
+import { PauseButton } from '../PauseButton'
+import '../hud/HUD.scss'
 
 export const HUD: FC = () => {
   const [isMusicStarted, setIsMusicStarted] = useState(false)

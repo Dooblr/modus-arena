@@ -1,5 +1,5 @@
 import { FC } from 'react'
-import { useGameState } from '../store/gameState'
+import { useGameState } from '../../store/gameState'
 
 interface Upgrade {
   id: string

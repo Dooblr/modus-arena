@@ -1,5 +1,5 @@
 import { FC, useRef, useEffect, useState } from 'react'
-import { useGameState } from '../store/gameState'
+import { useGameState } from '../../store/gameState'
 
 export const HealthDisplay: FC = () => {
   const health = useGameState(state => state.health)

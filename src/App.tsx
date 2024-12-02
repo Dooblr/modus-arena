@@ -1,9 +1,9 @@
 import { Canvas } from '@react-three/fiber'
 import { Scene } from './components/Scene'
-import { HUD } from './components/HUD'
-import { UpgradeSelection } from './components/UpgradeSelection'
+import { HUD } from './components/hud/HUD'
+import { UpgradeSelection } from './components/hud/UpgradeSelection'
 import './App.scss'
-import './components/HUD.scss'
+import './components/hud/HUD.scss'
 
 function App() {
   return (

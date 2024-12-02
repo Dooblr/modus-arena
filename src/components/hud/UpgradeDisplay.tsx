@@ -1,5 +1,5 @@
 import { FC } from 'react'
-import { useGameState } from '../store/gameState'
+import { useGameState } from '../../store/gameState'
 import './UpgradeDisplay.scss'
 
 export const UpgradeDisplay: FC = () => {
