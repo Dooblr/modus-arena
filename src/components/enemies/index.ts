@@ -39,7 +39,7 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
     speed: 0.1,
     size: 0.5,
     spawnHeight: 1,
-    spawnInterval: 2,
+    spawnInterval: 5,
     healthDropChance: 0.1,
     collider: {
       type: 'sphere',
@@ -51,7 +51,7 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
     speed: 0.08,
     size: 1.0,
     spawnHeight: 1,
-    spawnInterval: 4,
+    spawnInterval: 8,
     healthDropChance: 0.2,
     collider: {
       type: 'sphere',
@@ -63,7 +63,7 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
     speed: 0.06,
     size: 1.5,
     spawnHeight: 1,
-    spawnInterval: 6,
+    spawnInterval: 15,
     healthDropChance: 0.3,
     collider: {
       type: 'sphere',
