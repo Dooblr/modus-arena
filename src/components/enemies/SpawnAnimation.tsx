@@ -21,10 +21,10 @@ export const SpawnAnimation: FC<SpawnAnimationProps> = ({
   const movingRingRef = useRef<THREE.Mesh>(null)
   const { playEnemySpawnSound } = useGameAudio() // Get the playSound function
 
-  useEffect(() => {
-    // Play the spawn sound when the component mounts
-    playEnemySpawnSound()
-  }, [playEnemySpawnSound])
+  // Play the spawn sound when the component mounts
+  // useEffect(() => {
+    // playEnemySpawnSound()
+  // }, [playEnemySpawnSound])
 
   useFrame(() => {
     const currentTime = performance.now() / 1000

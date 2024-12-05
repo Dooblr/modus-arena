@@ -1,6 +1,7 @@
 import { FC, useRef, useEffect, useState } from "react"
 import * as THREE from "three"
-import { useFrame } from "@react-three/fiber"
+import { useFrame, useLoader } from "@react-three/fiber"
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 import { ENEMY_CONFIGS } from "./index"
 import { useCollisionStore } from "../../store/collisionStore"
 import type { Collider } from "../../systems/CollisionSystem"
@@ -57,32 +58,29 @@ export const Enemy3: FC<Enemy3Props> = ({
   const { addCollider, removeCollider } = useCollisionStore()
   const [velocity] = useState(new THREE.Vector3())
 
+  // Load the spider model
+  const gltf = useLoader(GLTFLoader, 'src/assets/models/spider.glb')
+
   useEffect(() => {
-    if (!meshRef.current || !position || !wobbleOffset) return
+    // Collider setup
+    if (meshRef.current) {
+      const collider: Collider = {
+        type: 'sphere',
+        position: position.clone().add(wobbleOffset),
+        size: new THREE.Vector3(ENEMY_CONFIGS.enemy3.size, ENEMY_CONFIGS.enemy3.size, ENEMY_CONFIGS.enemy3.size),
+        layer: 'enemy',
+        entity: meshRef.current
+      }
 
-    const collider: Collider = {
-      type: "sphere",
-      position: position.clone().add(wobbleOffset),
-      size: new THREE.Vector3(
-        ENEMY_CONFIGS.enemy3.size,
-        ENEMY_CONFIGS.enemy3.size,
-        ENEMY_CONFIGS.enemy3.size
-      ),
-      layer: "enemy",
-      entity: meshRef.current,
+      addCollider(collider)
+      return () => removeCollider(collider)
     }
-
-    addCollider(collider)
-    return () => removeCollider(collider)
-  }, [position, wobbleOffset, addCollider, removeCollider])
-
-  // Create a ref for the group
-  const groupRef = useRef<THREE.Group>(null);
+  }, [position, addCollider, removeCollider])
 
   useFrame(() => {
     // Spin animation for the entire group
-    if (groupRef.current) {
-      groupRef.current.rotation.y += 0.01; // Adjust the speed of the spin here
+    if (meshRef.current) {
+      meshRef.current.rotation.y += 0.01; // Adjust the speed of the spin here
     }
   })
 
@@ -93,47 +91,16 @@ export const Enemy3: FC<Enemy3Props> = ({
   )
 
   return (
-    <group ref={groupRef} position={position}>
-      {/* Spider body */}
-      <mesh ref={meshRef} castShadow>
-        <sphereGeometry args={[BODY_RADIUS, 32, 32]} />
-        <meshStandardMaterial color={"black"} roughness={0.7} metalness={0.3} />
-      </mesh>
+    <group position={position}>
+      {/* Spider model */}
+      <primitive object={gltf.scene} ref={meshRef} castShadow />
 
-      {/* Spider legs */}
-      {legConfigs.current.map((config, index) => {
-        const baseLegPosition = new THREE.Vector3(
-          Math.cos(config.baseAngle) * (BODY_RADIUS + LEG_LENGTH / 2),
-          0,
-          Math.sin(config.baseAngle) * (BODY_RADIUS + LEG_LENGTH / 2)
-        );
-
-        return (
-          <group key={index} position={baseLegPosition}>
-            {/* First Joint (Larger) */}
-            <mesh>
-              <cylinderGeometry args={[LEG_RADIUS * 2, LEG_RADIUS * 2, config.segments[0].length, 8]} />
-              <meshStandardMaterial color={"black"} />
-            </mesh>
-
-            {/* Second Joint */}
-            <group position={new THREE.Vector3(0, config.segments[0].length, 0)}>
-              <mesh>
-                <cylinderGeometry args={[LEG_RADIUS, LEG_RADIUS, config.segments[1].length, 8]} />
-                <meshStandardMaterial color={"black"} />
-              </mesh>
-            </group>
-
-            {/* Third Joint */}
-            <group position={new THREE.Vector3(0, config.segments[0].length + config.segments[1].length, 0)}>
-              <mesh>
-                <cylinderGeometry args={[LEG_RADIUS, LEG_RADIUS, config.segments[2].length, 8]} />
-                <meshStandardMaterial color={"black"} />
-              </mesh>
-            </group>
-          </group>
-        );
-      })}
+      {/* Optionally, you can add additional logic for legs or other components here */}
     </group>
   )
+}
+
+declare module 'three/examples/jsm/loaders/GLTFLoader' {
+  import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+  export default GLTFLoader;
 }
