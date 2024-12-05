@@ -1,6 +1,7 @@
-import { FC, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
+import { FC, useEffect, useRef } from "react"
+import { useFrame } from "@react-three/fiber"
+import * as THREE from "three"
+import { useGameAudio } from "../../hooks/useGameAudio"
 
 interface SpawnAnimationProps {
   position: THREE.Vector3
@@ -8,70 +9,74 @@ interface SpawnAnimationProps {
 }
 
 const ANIMATION_DURATION = 3 // seconds
-const CYLINDER_HEIGHT = 3
-const CYLINDER_RADIUS = 0.8
-const CYLINDER_COLOR = '#00ffff'
+const CIRCLE_RADIUS = 1.0
+const CIRCLE_COLOR = "#ff0000" // Red color
 
-export const SpawnAnimation: FC<SpawnAnimationProps> = ({ position, onComplete }) => {
+export const SpawnAnimation: FC<SpawnAnimationProps> = ({
+  position,
+  onComplete,
+}) => {
   const startTime = useRef(performance.now() / 1000)
-  const topPartRef = useRef<THREE.Mesh>(null)
+  const circleRef = useRef<THREE.Mesh>(null)
+  const movingRingRef = useRef<THREE.Mesh>(null)
+  const { playEnemySpawnSound } = useGameAudio() // Get the playSound function
+
+  useEffect(() => {
+    // Play the spawn sound when the component mounts
+    playEnemySpawnSound()
+  }, [playEnemySpawnSound])
 
   useFrame(() => {
     const currentTime = performance.now() / 1000
     const elapsed = currentTime - startTime.current
     const progress = Math.min(elapsed / ANIMATION_DURATION, 1)
 
-    if (topPartRef.current) {
-      // Move top part up and down with a sine wave
-      const heightOffset = Math.sin(progress * Math.PI * 4) * 0.5 * (1 - progress)
-      topPartRef.current.position.y = CYLINDER_HEIGHT + heightOffset
+    if (circleRef.current) {
+      // Create a pulsing effect for the stationary ring
+      const scale = CIRCLE_RADIUS + Math.sin(progress * Math.PI * 2) * 0.3 // Pulsing scale
+      circleRef.current.scale.set(scale, scale, 1)
+
+      const material = circleRef.current.material as THREE.MeshStandardMaterial
+      if (material) {
+        material.opacity =
+          Math.abs(Math.cos(progress * Math.PI * 2)) * 0.5 + 0.5 // Fading effect
+      }
     }
 
-    if (progress === 1) {
+    if (movingRingRef.current) {
+      // Create an up-and-down motion for the second ring
+      const heightOffset = Math.sin(progress * Math.PI * 2) * 0.5 // Vertical motion
+      movingRingRef.current.position.y = heightOffset
+
+      const material = movingRingRef.current
+        .material as THREE.MeshStandardMaterial
+      if (material) {
+        material.opacity =
+          Math.abs(Math.sin(progress * Math.PI * 2)) * 0.5 + 0.5 // Fading effect
+      }
+    }
+
+    if (progress >= 1) {
       onComplete()
     }
   })
 
   return (
     <group position={position}>
-      {/* Bottom circle */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[CYLINDER_RADIUS - 0.1, CYLINDER_RADIUS, 32]} />
-        <meshBasicMaterial color={CYLINDER_COLOR} transparent opacity={0.5} />
+      {/* Stationary pulsing ring */}
+      <mesh ref={circleRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[CIRCLE_RADIUS - 0.1, CIRCLE_RADIUS, 32]} />
+        <meshStandardMaterial color={CIRCLE_COLOR} transparent opacity={0.5} />
       </mesh>
 
-      {/* Top circle */}
-      <mesh ref={topPartRef} position={[0, CYLINDER_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[CYLINDER_RADIUS - 0.1, CYLINDER_RADIUS, 32]} />
-        <meshBasicMaterial color={CYLINDER_COLOR} transparent opacity={0.5} />
+      {/* Moving up-and-down ring */}
+      <mesh ref={movingRingRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[CIRCLE_RADIUS - 0.2, CIRCLE_RADIUS - 0.1, 32]} />
+        <meshStandardMaterial color={CIRCLE_COLOR} transparent opacity={0.5} />
       </mesh>
 
-      {/* Connecting lines */}
-      {[0, Math.PI/2, Math.PI, Math.PI*3/2].map((angle, i) => (
-        <line key={i}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              count={2}
-              array={new Float32Array([
-                Math.cos(angle) * CYLINDER_RADIUS, 0, Math.sin(angle) * CYLINDER_RADIUS,
-                Math.cos(angle) * CYLINDER_RADIUS, CYLINDER_HEIGHT, Math.sin(angle) * CYLINDER_RADIUS
-              ])}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color={CYLINDER_COLOR} transparent opacity={0.3} />
-        </line>
-      ))}
-
-      {/* Center beam */}
-      <mesh>
-        <cylinderGeometry args={[0.1, 0.1, CYLINDER_HEIGHT, 8]} />
-        <meshBasicMaterial color={CYLINDER_COLOR} transparent opacity={0.2} />
-      </mesh>
-
-      {/* Light effect */}
-      <pointLight color={CYLINDER_COLOR} intensity={2} distance={3} />
+      {/* Add a point light for glowing effect */}
+      <pointLight color={CIRCLE_COLOR} intensity={1} distance={2} />
     </group>
   )
-} 
+}
