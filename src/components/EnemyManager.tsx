@@ -29,6 +29,26 @@ const SECOND_PLATFORM_HEIGHT = 8
 const TERRAIN_AVOIDANCE_DISTANCE = 2
 const TERRAIN_AVOIDANCE_FORCE = 0.1
 const PARTICLE_LIFETIME = 1
+const LOG_INTERVAL = 5000 // 5 seconds in milliseconds
+const lastPathfindingLog = { current: 0 }
+const stuckEnemies = new Map<number, {
+  position: number[],
+  attemptedPosition: number[],
+  directionToPlayer: number[],
+  distanceToPlayer: number
+}>()
+
+// Add these constants at the top
+const ALTERNATIVE_DIRECTIONS = [
+  { x: 1, z: 0 },   // right
+  { x: -1, z: 0 },  // left
+  { x: 0, z: 1 },   // forward
+  { x: 0, z: -1 },  // back
+  { x: 1, z: 1 },   // diagonal
+  { x: -1, z: 1 },  // diagonal
+  { x: 1, z: -1 },  // diagonal
+  { x: -1, z: -1 }  // diagonal
+]
 
 interface Enemy {
   id: number
@@ -39,6 +59,8 @@ interface Enemy {
   isSpawning: boolean
   spawnTime: number
   maxHealth: number
+  stuckTime?: number
+  currentDirectionIndex?: number
 }
 
 interface Explosion {
@@ -64,12 +86,7 @@ export const EnemyManager: FC = () => {
   const checkTerrainCollision = (position: THREE.Vector3, enemyType: EnemyType) => {
     const enemySize = ENEMY_CONFIGS[enemyType].size
 
-    // Check floor boundaries
-    if (Math.abs(position.x) > FLOOR_BOUNDARY || Math.abs(position.z) > FLOOR_BOUNDARY) {
-      return true
-    }
-
-    // Check platforms
+    // Check collision with each platform
     for (const platform of ALL_PLATFORMS) {
       const halfSize = {
         x: platform.size.x / 2,
@@ -78,10 +95,10 @@ export const EnemyManager: FC = () => {
       }
 
       if (
-        position.x >= platform.position.x - halfSize.x - enemySize/2 &&
-        position.x <= platform.position.x + halfSize.x + enemySize/2 &&
-        position.z >= platform.position.z - halfSize.z - enemySize/2 &&
-        position.z <= platform.position.z + halfSize.z + enemySize/2 &&
+        position.x >= platform.position.x - halfSize.x - enemySize &&
+        position.x <= platform.position.x + halfSize.x + enemySize &&
+        position.z >= platform.position.z - halfSize.z - enemySize &&
+        position.z <= platform.position.z + halfSize.z + enemySize &&
         position.y >= platform.position.y - halfSize.y &&
         position.y <= platform.position.y + halfSize.y
       ) {
@@ -159,68 +176,82 @@ export const EnemyManager: FC = () => {
 
   const updateEnemyPositions = (deltaTime: number) => {
     setEnemies(prev => prev.map(enemy => {
-      if (enemy.isSpawning) return enemy // Don't move if spawning
+      if (enemy.isSpawning) return enemy
 
       const config = ENEMY_CONFIGS[enemy.type]
+      let moveDirection: THREE.Vector3
 
-      // Calculate direction to player
-      const dirToPlayer = new THREE.Vector3()
-        .subVectors(playerPosition.current, enemy.position)
-        .normalize()
+      // If enemy was previously stuck, try alternative direction
+      if (enemy.stuckTime !== undefined) {
+        const alternativeDir = ALTERNATIVE_DIRECTIONS[enemy.currentDirectionIndex || 0]
+        moveDirection = new THREE.Vector3(alternativeDir.x, 0, alternativeDir.z).normalize()
+        
+        // Check if this direction gets us closer to player
+        const testPosition = enemy.position.clone().add(
+          moveDirection.clone().multiplyScalar(config.speed)
+        )
+        
+        const currentDistanceToPlayer = enemy.position.distanceTo(playerPosition.current)
+        const newDistanceToPlayer = testPosition.distanceTo(playerPosition.current)
 
-      // Calculate repulsion from other enemies
-      const repulsionForce = new THREE.Vector3()
-      prev.forEach(otherEnemy => {
-        if (otherEnemy.id !== enemy.id) {
-          const distance = enemy.position.distanceTo(otherEnemy.position)
-          if (distance < ENEMY_REPULSION_DISTANCE) {
-            const force = ENEMY_REPULSION_FORCE * (1 - distance / ENEMY_REPULSION_DISTANCE)
-            const direction = new THREE.Vector3()
-              .subVectors(enemy.position, otherEnemy.position)
-              .normalize()
-            repulsionForce.add(direction.multiplyScalar(force))
-          }
+        if (newDistanceToPlayer < currentDistanceToPlayer) {
+          // If we're getting closer, clear stuck status
+          enemy.stuckTime = undefined
+          enemy.currentDirectionIndex = undefined
+        } else {
+          // Try next direction
+          enemy.currentDirectionIndex = ((enemy.currentDirectionIndex || 0) + 1) % ALTERNATIVE_DIRECTIONS.length
         }
-      })
+      } else {
+        // Normal movement toward player
+        moveDirection = new THREE.Vector3()
+          .subVectors(playerPosition.current, enemy.position)
+          .normalize()
+      }
 
       // Create new position
       const newPosition = enemy.position.clone()
-
-      if (enemy.position.y > SECOND_PLATFORM_HEIGHT) {
-        // Retreat movement
-        newPosition.y = Math.max(FIRST_PLATFORM_HEIGHT, enemy.position.y - config.speed * 2)
-        const retreatDirection = new THREE.Vector3(
-          enemy.position.x - playerPosition.current.x,
-          0,
-          enemy.position.z - playerPosition.current.z
-        ).normalize()
-        newPosition.add(retreatDirection.multiplyScalar(config.speed))
-      } else {
-        // Normal movement towards player
-        newPosition.add(dirToPlayer.multiplyScalar(config.speed))
-      }
-
-      // Apply repulsion
-      newPosition.add(repulsionForce)
-
-      // Keep at proper height
+      newPosition.add(moveDirection.multiplyScalar(config.speed))
       newPosition.y = config.spawnHeight
+
+      // Check for terrain collision
+      if (checkTerrainCollision(newPosition, enemy.type)) {
+        // Mark as stuck and start trying alternative directions
+        const updatedEnemy = {
+          ...enemy,
+          stuckTime: (enemy.stuckTime || 0) + deltaTime,
+          currentDirectionIndex: enemy.currentDirectionIndex || 0
+        }
+
+        // Log stuck enemies periodically
+        const currentTime = performance.now()
+        if (currentTime - lastPathfindingLog.current >= LOG_INTERVAL) {
+          console.log('Stuck Enemies Report:', {
+            timestamp: new Date().toISOString(),
+            enemy: {
+              id: enemy.id,
+              type: enemy.type,
+              position: enemy.position.toArray(),
+              stuckTime: updatedEnemy.stuckTime,
+              tryingDirection: ALTERNATIVE_DIRECTIONS[updatedEnemy.currentDirectionIndex],
+              distanceToPlayer: enemy.position.distanceTo(playerPosition.current)
+            }
+          })
+          lastPathfindingLog.current = currentTime
+        }
+
+        return updatedEnemy
+      }
 
       // Keep within floor boundaries
       newPosition.x = THREE.MathUtils.clamp(newPosition.x, -FLOOR_BOUNDARY, FLOOR_BOUNDARY)
       newPosition.z = THREE.MathUtils.clamp(newPosition.z, -FLOOR_BOUNDARY, FLOOR_BOUNDARY)
 
-      // After applying all movement, do one final terrain check
-      if (checkTerrainCollision(newPosition, enemy.type)) {
-        return {
-          ...enemy,
-          health: enemy.health
-        }
-      }
-
       return {
         ...enemy,
-        position: newPosition
+        position: newPosition,
+        stuckTime: undefined,
+        currentDirectionIndex: undefined
       }
     }))
   }
