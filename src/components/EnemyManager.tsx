@@ -50,6 +50,9 @@ const ALTERNATIVE_DIRECTIONS = [
   { x: -1, z: -1 }  // diagonal
 ]
 
+const STUCK_THRESHOLD = 0.01 // Minimum movement required to not be considered stuck
+const DIRECTION_CHANGE_INTERVAL = 0.5 // How often to try new directions (seconds)
+
 interface Enemy {
   id: number
   type: EnemyType
@@ -61,6 +64,8 @@ interface Enemy {
   maxHealth: number
   stuckTime?: number
   currentDirectionIndex?: number
+  lastPosition?: THREE.Vector3
+  lastDirectionChange?: number
 }
 
 interface Explosion {
@@ -174,73 +179,93 @@ export const EnemyManager: FC = () => {
     setEnemies(prev => [...prev, newEnemy])
   }
 
+  const findBetterPosition = (
+    currentPos: THREE.Vector3,
+    targetPos: THREE.Vector3,
+    enemyType: EnemyType,
+    speed: number
+  ): THREE.Vector3 | null => {
+    // Try 8 different directions
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+      const direction = new THREE.Vector3(
+        Math.cos(angle),
+        0,
+        Math.sin(angle)
+      ).normalize()
+
+      const testPosition = currentPos.clone().add(direction.multiplyScalar(speed))
+      testPosition.y = ENEMY_CONFIGS[enemyType].spawnHeight
+
+      if (!checkTerrainCollision(testPosition, enemyType)) {
+        const currentDistance = currentPos.distanceTo(targetPos)
+        const newDistance = testPosition.distanceTo(targetPos)
+
+        if (newDistance < currentDistance) {
+          return testPosition
+        }
+      }
+    }
+    return null
+  }
+
   const updateEnemyPositions = (deltaTime: number) => {
     setEnemies(prev => prev.map(enemy => {
       if (enemy.isSpawning) return enemy
 
       const config = ENEMY_CONFIGS[enemy.type]
-      let moveDirection: THREE.Vector3
+      const lastPos = enemy.lastPosition || enemy.position.clone()
+      const movement = enemy.position.distanceTo(lastPos)
 
-      // If enemy was previously stuck, try alternative direction
-      if (enemy.stuckTime !== undefined) {
-        const alternativeDir = ALTERNATIVE_DIRECTIONS[enemy.currentDirectionIndex || 0]
-        moveDirection = new THREE.Vector3(alternativeDir.x, 0, alternativeDir.z).normalize()
+      // Check if enemy is stuck
+      if (movement < STUCK_THRESHOLD && 
+          (enemy.lastDirectionChange === undefined || 
+           performance.now() / 1000 - enemy.lastDirectionChange > DIRECTION_CHANGE_INTERVAL)) {
         
-        // Check if this direction gets us closer to player
-        const testPosition = enemy.position.clone().add(
-          moveDirection.clone().multiplyScalar(config.speed)
+        // Try to find a better position
+        const betterPosition = findBetterPosition(
+          enemy.position,
+          playerPosition.current,
+          enemy.type,
+          config.speed
         )
-        
-        const currentDistanceToPlayer = enemy.position.distanceTo(playerPosition.current)
-        const newDistanceToPlayer = testPosition.distanceTo(playerPosition.current)
 
-        if (newDistanceToPlayer < currentDistanceToPlayer) {
-          // If we're getting closer, clear stuck status
-          enemy.stuckTime = undefined
-          enemy.currentDirectionIndex = undefined
-        } else {
-          // Try next direction
-          enemy.currentDirectionIndex = ((enemy.currentDirectionIndex || 0) + 1) % ALTERNATIVE_DIRECTIONS.length
+        if (betterPosition) {
+          return {
+            ...enemy,
+            position: betterPosition,
+            lastPosition: enemy.position.clone(),
+            lastDirectionChange: performance.now() / 1000
+          }
         }
-      } else {
-        // Normal movement toward player
-        moveDirection = new THREE.Vector3()
-          .subVectors(playerPosition.current, enemy.position)
-          .normalize()
       }
 
-      // Create new position
+      // Normal movement toward player
+      const dirToPlayer = new THREE.Vector3()
+        .subVectors(playerPosition.current, enemy.position)
+        .normalize()
+
       const newPosition = enemy.position.clone()
-      newPosition.add(moveDirection.multiplyScalar(config.speed))
+      newPosition.add(dirToPlayer.multiplyScalar(config.speed))
       newPosition.y = config.spawnHeight
 
-      // Check for terrain collision
       if (checkTerrainCollision(newPosition, enemy.type)) {
-        // Mark as stuck and start trying alternative directions
-        const updatedEnemy = {
-          ...enemy,
-          stuckTime: (enemy.stuckTime || 0) + deltaTime,
-          currentDirectionIndex: enemy.currentDirectionIndex || 0
-        }
+        // If direct path is blocked, try to find better position
+        const betterPosition = findBetterPosition(
+          enemy.position,
+          playerPosition.current,
+          enemy.type,
+          config.speed
+        )
 
-        // Log stuck enemies periodically
-        const currentTime = performance.now()
-        if (currentTime - lastPathfindingLog.current >= LOG_INTERVAL) {
-          console.log('Stuck Enemies Report:', {
-            timestamp: new Date().toISOString(),
-            enemy: {
-              id: enemy.id,
-              type: enemy.type,
-              position: enemy.position.toArray(),
-              stuckTime: updatedEnemy.stuckTime,
-              tryingDirection: ALTERNATIVE_DIRECTIONS[updatedEnemy.currentDirectionIndex],
-              distanceToPlayer: enemy.position.distanceTo(playerPosition.current)
-            }
-          })
-          lastPathfindingLog.current = currentTime
+        if (betterPosition) {
+          return {
+            ...enemy,
+            position: betterPosition,
+            lastPosition: enemy.position.clone(),
+            lastDirectionChange: performance.now() / 1000
+          }
         }
-
-        return updatedEnemy
+        return enemy // Stay in place if no better position found
       }
 
       // Keep within floor boundaries
@@ -250,8 +275,7 @@ export const EnemyManager: FC = () => {
       return {
         ...enemy,
         position: newPosition,
-        stuckTime: undefined,
-        currentDirectionIndex: undefined
+        lastPosition: enemy.position.clone()
       }
     }))
   }
